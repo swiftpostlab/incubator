@@ -10,7 +10,7 @@ version: 0.1.0
 
 Use this skill whenever generating, refactoring, or reviewing React components, custom hooks, or Next.js pages within the `main` package of the Swiftpost monorepo.
 
-## 1. Directory Strictness & Imports
+## Directory Strictness & Imports
 
 Do not guess import paths. Adhere strictly to the monorepo structure:
 
@@ -22,7 +22,7 @@ Do not guess import paths. Adhere strictly to the monorepo structure:
 * **Theme:** Use `packages/main/src/styles/staticTheme.ts` (`import { staticTheme } from '@/styles/staticTheme';`) to read theme values without forcing `"use client"`.
 * **Shared Logic:** Features and storage logic must go in `packages/main/src/features`.
 
-## 2. TypeScript & Component Rules
+## TypeScript & Component Rules
 
 Technical debt will not be tolerated. Enforce the following:
 
@@ -57,7 +57,7 @@ export type MyComponentProps = Props;
 export default MyComponent;
 ```
 
-## 3. Custom Hook Rules
+## Custom Hook Rules
 
 Hooks must be resilient, typed, and encapsulate their own side effects (like event listeners or storage sync).
 
@@ -90,7 +90,7 @@ export const useCustomFeature = <TValue>(initialValue: TValue) => {
 };    
 ```
 
-## 4. Modularity & Feature Isolation
+## Modularity & Feature Isolation
 
 Fat components are strictly banned. UI components must be presentation-focused.
 
@@ -98,7 +98,7 @@ Fat components are strictly banned. UI components must be presentation-focused.
 * **Client Wrappers:** Keep Next.js Page components (`page.tsx`) as thin Server Components whenever possible. Abstract heavy client-side logic into a separate Client Wrapper (e.g., `AuthClientWrapper.tsx`) to minimize the `"use client"` boundary footprint.
 * **Component Splitting:** Extract complex UI states (e.g., Authenticated vs. Unauthenticated views) into private, sibling components within the same file to keep the main render method clean and readable.
 
-## 5. Approved Ecosystem & Dependencies
+## Approved Ecosystem & Dependencies
 
 Avoid dependency bloat. Do not install micro-libraries for trivial logic that can be written in a few lines of standard TypeScript. When external libraries are necessary, strictly use the following approved, well-maintained tools:
 
@@ -107,7 +107,7 @@ Avoid dependency bloat. Do not install micro-libraries for trivial logic that ca
 * **API Requests:** Use `apisauce` for standardized API communication.
 * **Date Manipulation:** Prefer native JavaScript `Date` and `Intl.DateTimeFormat` for simple parsing and formatting to avoid bundle bloat. If, and only if, complex date manipulation or timezone math is required, use `date-fns`.
 
-## 7. Reusable Component Architecture (MUI 7 Slots Pattern)
+## Reusable Component Architecture (MUI 7 Slots Pattern)
 
 Reusable components must use the **Slots & SlotProps** pattern for maximum flexibility.
 
@@ -165,7 +165,7 @@ export type CustomLayoutProps = Props;
 export default memo(CustomLayout);
 ```
 
-## 8. Styling, Theming & Responsive Design
+## Styling, Theming & Responsive Design
 
 * Mobile-First Approach: Strictly adhere to mobile-first design. Define base styles for mobile (xs) first, then use breakpoints to override for larger screens.
   * Example: width: { xs: '100%', md: '50%' }
@@ -174,3 +174,53 @@ export default memo(CustomLayout);
   * Spacing: 0.5rem factor. spacing(2) = 1rem.
   * Breakpoints: xs: 340, sm: 600, md: 900, lg: 1200, xl: 1536.
 * Typography: Font family defaults to var(--font-roboto).
+
+## Elysium UI Library Usage
+
+The `elysium` package is the definitive source for all UI elements. It distinguishes between thin MUI wrappers and enhanced custom components.
+
+### Import Strategy
+
+* **Base Components (MUI Wrappers):** Import standard MUI components from `@swiftpost/elysium/ui/base/*`.
+  * *Note:* `Typography` is renamed to `Text`. Always import `Text` from `@swiftpost/elysium/ui/base/Text`.
+* **Custom & Enhanced Components:** Import specialized components directly from `@swiftpost/elysium/ui/*`.
+
+### Key Enhanced Components
+
+* **Link (`@swiftpost/elysium/ui/Link`):** * Integrates `next/link` with MUI styling.
+  * Use `external` prop to bypass `next/link`.
+  * Use `blank` for `target="_blank"`.
+  * Use `inheritStyle` to inherit font properties from the parent.
+* **Image (`@swiftpost/elysium/ui/Image`):** * Smart wrapper around `next/image`.
+  * Automatically falls back to a standard `<img>` tag if the source is a simple string (url) without dimensions, preventing Next.js image errors.
+* **ContentFittedStack (`@swiftpost/elysium/ui/ContentFittedStack`):** * Use for layout sections that need constrained max-width content centering.
+
+### Hooks
+
+* **`useMediaQuery`:** Import from `@swiftpost/elysium/ui/useMediaQuery`.
+* **`useTheme`:** Import from `@swiftpost/elysium/ui/useTheme`.
+
+### Example: Elysium Composition
+
+```tsx
+import { staticTheme } from '@/styles/staticTheme';
+import Text from '@swiftpost/elysium/ui/base/Text'; // Base wrapper (Typography)
+import ContentFittedStack from '@swiftpost/elysium/ui/ContentFittedStack'; // Custom layout
+import Link from '@swiftpost/elysium/ui/Link'; // Enhanced Link
+import Image from '@swiftpost/elysium/ui/Image'; // Enhanced Image
+
+const MyFooter = () => (
+  <ContentFittedStack
+    component="footer"
+    minHeight={staticTheme.spacing(6)}
+    // "container" slot style override pattern
+    slotProps={{ 
+      container: { sx: { backgroundColor: 'grey.100' } } 
+    }}
+  >
+    <Text>
+       Powered by <Link href="[https://example.com](https://example.com)" external blank>SwiftPost</Link>
+    </Text>
+    <Image source="/logo.png" alt="Logo" width={100} height={50} />
+  </ContentFittedStack>
+);
