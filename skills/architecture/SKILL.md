@@ -106,3 +106,71 @@ Avoid dependency bloat. Do not install micro-libraries for trivial logic that ca
 * **Schema Validation:** Use `zod` for strict runtime type-checking of API payloads, environment variables, and complex form state. Trusting implicit types from external sources is banned.
 * **API Requests:** Use `apisauce` for standardized API communication.
 * **Date Manipulation:** Prefer native JavaScript `Date` and `Intl.DateTimeFormat` for simple parsing and formatting to avoid bundle bloat. If, and only if, complex date manipulation or timezone math is required, use `date-fns`.
+
+## 7. Reusable Component Architecture (MUI 7 Slots Pattern)
+
+Reusable components must use the **Slots & SlotProps** pattern for maximum flexibility.
+
+* **Imports:** Use `InferSlotsFromSlotProps`, `SxProps` from `@swiftpost/elysium/ui/types` and `spreadSx` from `@swiftpost/elysium/utils/styles/sxProps`.
+* **Interface Structure:**
+  * Define `SlotProps` interface for internal elements (e.g., `root`, `footer`).
+  * Main `Props` must include `slots` (optional overrides), `slotProps` (props for those slots), and `sx` (root style overrides).
+* **Style Merging:** Never overwrite `sx`. Always use `spreadSx` within an array to merge styles safely: `sx={[{ ...baseStyles }, ...spreadSx(sx)]}`.
+* **Base Name:** Define a `const componentBaseName` (kebab-case) for stable CSS class targeting.
+* **Optimization:** Always wrap reusable UI components in `memo`.
+
+### Example: Advanced Slot Pattern
+
+```tsx
+import type { InferSlotsFromSlotProps, SxProps } from '@swiftpost/elysium/ui/types';
+import { spreadSx } from '@swiftpost/elysium/utils/styles/sxProps';
+import Box from '@swiftpost/elysium/ui/base/Box';
+import { memo } from 'react';
+
+const componentBaseName = 'custom-layout';
+
+interface SlotProps {
+  root: { children: React.ReactNode; sx?: SxProps };
+  footer?: { children: React.ReactNode; sx?: SxProps };
+}
+
+interface Props {
+  slots?: Partial<InferSlotsFromSlotProps<SlotProps>>;
+  slotProps: SlotProps;
+  sx?: SxProps;
+}
+
+const CustomLayout: React.FC<Props> = ({ slots, slotProps, sx }) => {
+  const Root = slots?.root ?? Box;
+  const Footer = slots?.footer ?? Box;
+
+  return (
+    <Root
+      className={componentBaseName}
+      // Merge styles using array syntax and spreadSx utility
+      sx={[{ display: 'flex', flexDirection: 'column' }, ...spreadSx(sx), ...spreadSx(slotProps.root.sx)]}
+    >
+      {slotProps.root.children}
+
+      {slotProps.footer && (
+         <Footer className={`${componentBaseName}-footer`} sx={[...spreadSx(slotProps.footer.sx)]}>
+           {slotProps.footer.children}
+         </Footer>
+      )}
+    </Root>
+  );
+};
+
+export type CustomLayoutProps = Props;
+export default memo(CustomLayout);
+```
+
+## 8. Styling, Theming & Responsive Design
+
+* Mobile-First Approach: Strictly adhere to mobile-first design. Define base styles for mobile (xs) first, then use breakpoints to override for larger screens.
+  * Example: width: { xs: '100%', md: '50%' }
+
+* Static Theme Usage: Use staticTheme for values to avoid hook overhead.
+  * Spacing: 0.5rem factor. spacing(2) = 1rem.
+  * Breakpoints: xs: 340, sm: 600, md: 900, lg: 1200, xl: 1536.
+* Typography: Font family defaults to var(--font-roboto).
