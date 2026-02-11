@@ -1,7 +1,6 @@
 ---
 name: architecture
 description: Component, hook, and page generation for this project.
-version: 0.1.0
 ---
 
 # Frontend Conventions
