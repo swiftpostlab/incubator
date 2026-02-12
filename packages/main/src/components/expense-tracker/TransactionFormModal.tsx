@@ -362,7 +362,9 @@ const TransactionFormModal: React.FC<Props> = ({
           </Button>
           <Button
             variant="contained"
-            onClick={handleSubmit}
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={!isValid || isSubmitting}
             sx={{ flex: 1 }}
           >

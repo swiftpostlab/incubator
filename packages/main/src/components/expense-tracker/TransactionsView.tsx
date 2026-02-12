@@ -17,7 +17,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { formatCurrency, formatDate } from '@/features/expense-tracker/utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+} from '@/features/expense-tracker/utils/formatters';
 import TransactionFormModal from '@/components/expense-tracker/TransactionFormModal';
 import type {
   Transaction,
@@ -72,7 +75,8 @@ const TransactionsView: React.FC<Props> = ({
   getCategoryColor,
 }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -102,7 +106,12 @@ const TransactionsView: React.FC<Props> = ({
       }
       handleFormClose();
     },
-    [editingTransaction, onAddTransaction, onUpdateTransaction, handleFormClose]
+    [
+      editingTransaction,
+      onAddTransaction,
+      onUpdateTransaction,
+      handleFormClose,
+    ],
   );
 
   const handleDeleteClick = useCallback(
@@ -111,11 +120,14 @@ const TransactionsView: React.FC<Props> = ({
         await onDeleteTransaction(id);
       }
     },
-    [onDeleteTransaction]
+    [onDeleteTransaction],
   );
 
   const handleBulkDelete = useCallback(async () => {
-    if (selectedIds.size > 0 && window.confirm(`Delete ${selectedIds.size} transactions?`)) {
+    if (
+      selectedIds.size > 0 &&
+      window.confirm(`Delete ${selectedIds.size} transactions?`)
+    ) {
       await onBulkDelete(Array.from(selectedIds));
       setSelectedIds(new Set());
     }
@@ -144,17 +156,23 @@ const TransactionsView: React.FC<Props> = ({
   const handleSearch = useCallback(
     (value: string) => {
       setSearchQuery(value);
-      onFilterChange({ search: value || undefined, category: filterCategory || undefined });
+      onFilterChange({
+        search: value || undefined,
+        category: filterCategory || undefined,
+      });
     },
-    [onFilterChange, filterCategory]
+    [onFilterChange, filterCategory],
   );
 
   const handleCategoryFilter = useCallback(
     (category: string) => {
       setFilterCategory(category);
-      onFilterChange({ category: category || undefined, search: searchQuery || undefined });
+      onFilterChange({
+        category: category || undefined,
+        search: searchQuery || undefined,
+      });
     },
-    [onFilterChange, searchQuery]
+    [onFilterChange, searchQuery],
   );
 
   const handleClearFilters = useCallback(() => {
@@ -201,14 +219,25 @@ const TransactionsView: React.FC<Props> = ({
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         }}
       >
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center">
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flex: 1, width: '100%' }}>
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          alignItems="center"
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ flex: 1, width: '100%' }}
+          >
             <SearchIcon sx={{ color: 'text.secondary' }} />
             <TextField
               placeholder="Search transactions..."
               size="small"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
+              onChange={(e) => {
+                handleSearch(e.target.value);
+              }}
               sx={{ flex: 1 }}
             />
           </Stack>
@@ -216,7 +245,9 @@ const TransactionsView: React.FC<Props> = ({
             <FormControl size="small" sx={{ minWidth: 150 }}>
               <Select
                 value={filterCategory}
-                onChange={(e) => handleCategoryFilter(e.target.value)}
+                onChange={(e) => {
+                  handleCategoryFilter(e.target.value);
+                }}
                 displayEmpty
               >
                 <MenuItem value="">All Categories</MenuItem>
@@ -231,12 +262,18 @@ const TransactionsView: React.FC<Props> = ({
               variant="outlined"
               size="small"
               startIcon={<FilterListIcon />}
-              onClick={() => setShowFilters(!showFilters)}
+              onClick={() => {
+                setShowFilters(!showFilters);
+              }}
             >
               Filters
             </Button>
             {(searchQuery || filterCategory) && (
-              <Button size="small" color="secondary" onClick={handleClearFilters}>
+              <Button
+                size="small"
+                color="secondary"
+                onClick={handleClearFilters}
+              >
                 Clear
               </Button>
             )}
@@ -254,7 +291,11 @@ const TransactionsView: React.FC<Props> = ({
             mb: 2,
           }}
         >
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack
+            direction="row"
+            alignItems="center"
+            justifyContent="space-between"
+          >
             <Text variant="body2">
               {selectedIds.size} transaction(s) selected
             </Text>
@@ -292,8 +333,13 @@ const TransactionsView: React.FC<Props> = ({
         >
           <Box>
             <Checkbox
-              checked={selectedIds.size === transactions.length && transactions.length > 0}
-              indeterminate={selectedIds.size > 0 && selectedIds.size < transactions.length}
+              checked={
+                selectedIds.size === transactions.length &&
+                transactions.length > 0
+              }
+              indeterminate={
+                selectedIds.size > 0 && selectedIds.size < transactions.length
+              }
               onChange={handleSelectAll}
             />
           </Box>
@@ -315,13 +361,16 @@ const TransactionsView: React.FC<Props> = ({
         </Box>
 
         {/* Table Body */}
-        {transactions.length > 0 ? (
+        {transactions.length > 0 ?
           transactions.map((tx) => (
             <Box
               key={tx.id}
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', md: '48px 1fr 120px 150px 100px 100px' },
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  md: '48px 1fr 120px 150px 100px 100px',
+                },
                 p: 2,
                 borderBottom: '1px solid',
                 borderColor: 'grey.100',
@@ -334,7 +383,9 @@ const TransactionsView: React.FC<Props> = ({
               <Box sx={{ display: { xs: 'none', md: 'block' } }}>
                 <Checkbox
                   checked={selectedIds.has(tx.id)}
-                  onChange={() => handleSelectOne(tx.id)}
+                  onChange={() => {
+                    handleSelectOne(tx.id);
+                  }}
                 />
               </Box>
 
@@ -372,12 +423,23 @@ const TransactionsView: React.FC<Props> = ({
 
               {/* Date */}
               <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-                <Text variant="body2">{formatDate(tx.date, settings.locale)}</Text>
+                <Text variant="body2">
+                  {formatDate(tx.date, settings.locale)}
+                </Text>
               </Box>
 
               {/* Amount */}
-              <Box sx={{ display: { xs: 'flex', md: 'block' }, justifyContent: 'space-between' }}>
-                <Text variant="body2" sx={{ display: { xs: 'block', md: 'none' } }} color="text.secondary">
+              <Box
+                sx={{
+                  display: { xs: 'flex', md: 'block' },
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text
+                  variant="body2"
+                  sx={{ display: { xs: 'block', md: 'none' } }}
+                  color="text.secondary"
+                >
                   {formatDate(tx.date, settings.locale)}
                 </Text>
                 <Text
@@ -403,7 +465,9 @@ const TransactionsView: React.FC<Props> = ({
                 <Button
                   size="small"
                   sx={{ minWidth: 'auto', p: 0.5 }}
-                  onClick={() => handleEditClick(tx)}
+                  onClick={() => {
+                    handleEditClick(tx);
+                  }}
                 >
                   <EditIcon fontSize="small" />
                 </Button>
@@ -411,28 +475,37 @@ const TransactionsView: React.FC<Props> = ({
                   size="small"
                   color="error"
                   sx={{ minWidth: 'auto', p: 0.5 }}
-                  onClick={() => handleDeleteClick(tx.id)}
+                  onClick={() => {
+                    void handleDeleteClick(tx.id);
+                  }}
                 >
                   <DeleteIcon fontSize="small" />
                 </Button>
               </Stack>
             </Box>
           ))
-        ) : (
-          <Box sx={{ p: 4, textAlign: 'center' }}>
+        : <Box sx={{ p: 4, textAlign: 'center' }}>
             <Text variant="body2" color="text.secondary">
               No transactions found. Add your first transaction!
             </Text>
           </Box>
-        )}
+        }
       </Box>
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <Stack direction="row" justifyContent="center" alignItems="center" spacing={2} sx={{ mt: 3 }}>
+        <Stack
+          direction="row"
+          justifyContent="center"
+          alignItems="center"
+          spacing={2}
+          sx={{ mt: 3 }}
+        >
           <Button
             disabled={page === 1}
-            onClick={() => onPageChange(page - 1)}
+            onClick={() => {
+              onPageChange(page - 1);
+            }}
             sx={{ minWidth: 'auto' }}
           >
             <ChevronLeftIcon />
@@ -442,7 +515,9 @@ const TransactionsView: React.FC<Props> = ({
           </Text>
           <Button
             disabled={page === totalPages}
-            onClick={() => onPageChange(page + 1)}
+            onClick={() => {
+              onPageChange(page + 1);
+            }}
             sx={{ minWidth: 'auto' }}
           >
             <ChevronRightIcon />
