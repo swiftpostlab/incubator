@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { getMessages, getLocale } from 'next-intl/server';
 import { NextIntlClientProvider } from 'next-intl';
 import './globals.css';
 import AppRouterCacheProvider from '@swiftpost/elysium/core/AppRouterCacheProvider';
 import ThemeProvider from '@swiftpost/elysium/core/ThemeProvider';
 import { theme, mainFont } from '@swiftpost/elysium/themes/gamut';
+import { getLocaleConfig } from '@/i18n/config';
 
 export const metadata: Metadata = {
   title: 'Expense Tracker | SwiftPost',
@@ -16,8 +16,7 @@ interface Props {
 }
 
 const RootLayout: React.FC<Props> = async ({ children }) => {
-  const locale = await getLocale();
-  const messages = await getMessages();
+  const { messages, locale } = await getLocaleConfig();
 
   return (
     <html lang={locale} className={mainFont.variable}>
