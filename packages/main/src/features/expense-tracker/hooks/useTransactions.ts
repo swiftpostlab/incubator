@@ -70,17 +70,13 @@ export const useTransactions = (
   const [error, setError] = useState<Error | null>(null);
 
   // Live query for all transactions
-  const transactions = useLiveQuery(
-    async () => {
-      try {
-        return await transactionService.getAll(globalFilter);
-      } catch {
-        return [];
-      }
-    },
-    [globalFilter?.enabled, globalFilter?.startDate, globalFilter?.endDate],
-    [],
-  );
+  const transactions = useLiveQuery(async () => {
+    try {
+      return await transactionService.getAll(globalFilter);
+    } catch {
+      return [];
+    }
+  }, [globalFilter?.enabled, globalFilter?.startDate, globalFilter?.endDate]);
 
   const isLoading = transactions === undefined;
 
@@ -109,7 +105,8 @@ export const useTransactions = (
     }
 
     if (filters.yearMonth) {
-      result = result.filter((tx) => tx.date.startsWith(filters.yearMonth!));
+      const yearMonth = filters.yearMonth;
+      result = result.filter((tx) => tx.date.startsWith(yearMonth));
     }
 
     if (filters.search) {

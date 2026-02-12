@@ -49,14 +49,18 @@ const DEFAULT_COLOR = '#6B7280';
 
 export const useCategories = (): UseCategoriesReturn => {
   const [error, setError] = useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Live query for category records
   const categoryRecords = useLiveQuery(
     async () => {
       try {
         const db = getDb();
-        return db.categories.toArray();
+        const result = await db.categories.toArray();
+        setIsLoading(false);
+        return result;
       } catch {
+        setIsLoading(false);
         return [];
       }
     },
@@ -64,15 +68,11 @@ export const useCategories = (): UseCategoriesReturn => {
     [],
   );
 
-  const isLoading = categoryRecords === undefined;
-
   // Convert records to Categories object
   const categories: Categories = {};
-  if (categoryRecords) {
-    categoryRecords.forEach((record: CategoryRecord) => {
-      categories[record.name] = record.subcategories;
-    });
-  }
+  categoryRecords.forEach((record: CategoryRecord) => {
+    categories[record.name] = record.subcategories;
+  });
 
   const addCategory = useCallback(
     async (name: string, subcategories: string[] = ['Other']) => {
@@ -189,7 +189,7 @@ export const useCategories = (): UseCategoriesReturn => {
 
   return {
     categories,
-    categoryList: categoryRecords ?? [],
+    categoryList: categoryRecords,
     isLoading,
     error,
     addCategory,

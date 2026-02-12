@@ -65,7 +65,7 @@ export const useExpenseData = (): UseExpenseDataReturn => {
       }
     };
 
-    init();
+    void init();
   }, []);
 
   // Live query for transactions
@@ -76,7 +76,7 @@ export const useExpenseData = (): UseExpenseDataReturn => {
       }
       try {
         const db = getDb();
-        return db.transactions.orderBy('date').reverse().toArray();
+        return await db.transactions.orderBy('date').reverse().toArray();
       } catch {
         return [];
       }
@@ -133,7 +133,7 @@ export const useExpenseData = (): UseExpenseDataReturn => {
       }
       try {
         const db = getDb();
-        return db.settings.get('settings');
+        return await db.settings.get('settings');
       } catch {
         return null;
       }
@@ -188,9 +188,9 @@ export const useExpenseData = (): UseExpenseDataReturn => {
     isInitialized,
     isLoading,
     error,
-    transactions: transactions ?? [],
-    categories: categoriesData ?? {},
-    tags: tagsData ?? [],
+    transactions,
+    categories: categoriesData,
+    tags: tagsData,
     globalFilter: settingsData?.globalFilter ?? defaultFilter,
     settings: settingsData?.userSettings ?? defaultSettings,
     actions: {

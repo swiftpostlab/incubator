@@ -16,7 +16,14 @@ interface Props {
   subtitle?: string;
 }
 
-const StatCard: React.FC<Props> = ({ title, value, icon, color = 'primary.main', trend, subtitle }) => {
+const StatCard: React.FC<Props> = ({
+  title,
+  value,
+  icon,
+  color = 'primary.main',
+  trend,
+  subtitle,
+}) => {
   return (
     <Box
       sx={{
@@ -31,7 +38,11 @@ const StatCard: React.FC<Props> = ({ title, value, icon, color = 'primary.main',
         },
       }}
     >
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="flex-start"
+      >
         <Box>
           <Text variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             {title}
@@ -48,11 +59,9 @@ const StatCard: React.FC<Props> = ({ title, value, icon, color = 'primary.main',
                   color: trend === 'up' ? 'success.main' : 'error.main',
                 }}
               >
-                {trend === 'up' ? (
+                {trend === 'up' ?
                   <TrendingUpIcon sx={{ fontSize: 20 }} />
-                ) : (
-                  <TrendingDownIcon sx={{ fontSize: 20 }} />
-                )}
+                : <TrendingDownIcon sx={{ fontSize: 20 }} />}
               </Box>
             )}
           </Stack>

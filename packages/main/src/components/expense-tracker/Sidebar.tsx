@@ -81,7 +81,9 @@ const Sidebar: React.FC<Props> = ({
         }}
       >
         <Stack direction="row" spacing={1.5} alignItems="center">
-          <AccountBalanceWalletIcon sx={{ color: 'primary.main', fontSize: 32 }} />
+          <AccountBalanceWalletIcon
+            sx={{ color: 'primary.main', fontSize: 32 }}
+          />
           <Text variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
             Expense Tracker
           </Text>
@@ -140,14 +142,18 @@ const Sidebar: React.FC<Props> = ({
         {navItems.map((item) => (
           <Button
             key={item.id}
-            onClick={() => onViewChange(item.id)}
+            onClick={() => {
+              onViewChange(item.id);
+            }}
             sx={{
               justifyContent: 'flex-start',
               px: 2,
               py: 1.5,
               borderRadius: 2,
-              color: currentView === item.id ? 'primary.main' : 'text.secondary',
-              bgcolor: currentView === item.id ? 'primary.light' : 'transparent',
+              color:
+                currentView === item.id ? 'primary.main' : 'text.secondary',
+              bgcolor:
+                currentView === item.id ? 'primary.light' : 'transparent',
               '&:hover': {
                 bgcolor: currentView === item.id ? 'primary.light' : 'grey.100',
               },
@@ -184,7 +190,10 @@ const Sidebar: React.FC<Props> = ({
             sx={{
               height: '100%',
               width: `${Math.min(Math.max(stats.savingsRate, 0), 100)}%`,
-              bgcolor: stats.savingsRate >= settings.savingsGoal ? 'success.main' : 'warning.main',
+              bgcolor:
+                stats.savingsRate >= settings.savingsGoal ?
+                  'success.main'
+                : 'warning.main',
               transition: 'width 0.3s ease',
             }}
           />

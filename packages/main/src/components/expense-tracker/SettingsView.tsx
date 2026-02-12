@@ -121,7 +121,9 @@ const SettingsView: React.FC<Props> = ({
               </Text>
               <Select
                 value={settings.locale}
-                onChange={(e) => onUpdateSettings({ locale: e.target.value })}
+                onChange={(e) =>
+                  void onUpdateSettings({ locale: e.target.value })
+                }
               >
                 {LOCALE_OPTIONS.map((opt) => (
                   <MenuItem key={opt.code} value={opt.code}>
@@ -138,7 +140,9 @@ const SettingsView: React.FC<Props> = ({
               </Text>
               <Select
                 value={settings.currency}
-                onChange={(e) => onUpdateSettings({ currency: e.target.value })}
+                onChange={(e) =>
+                  void onUpdateSettings({ currency: e.target.value })
+                }
               >
                 {CURRENCY_OPTIONS.map((opt) => (
                   <MenuItem key={opt.code} value={opt.code}>
@@ -160,7 +164,9 @@ const SettingsView: React.FC<Props> = ({
                     min="0"
                     max="100"
                     value={settings.savingsGoal}
-                    onChange={(e) => handleSavingsGoalChange(e.target.value)}
+                    onChange={(e) =>
+                      void handleSavingsGoalChange(e.target.value)
+                    }
                     style={{ width: '100%' }}
                   />
                 </Box>
@@ -202,7 +208,7 @@ const SettingsView: React.FC<Props> = ({
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={handleAddCategory}
+              onClick={() => void handleAddCategory()}
               disabled={!newCategoryName.trim()}
             >
               Add
@@ -235,7 +241,7 @@ const SettingsView: React.FC<Props> = ({
                 <Button
                   size="small"
                   color="error"
-                  onClick={() => cat.id && handleDeleteCategory(cat.id)}
+                  onClick={() => void (cat.id && handleDeleteCategory(cat.id))}
                   sx={{ minWidth: 'auto', p: 0.5 }}
                 >
                   <DeleteIcon fontSize="small" />
@@ -292,7 +298,7 @@ const SettingsView: React.FC<Props> = ({
               <Button
                 variant="outlined"
                 startIcon={<AddIcon />}
-                onClick={handleAddSubcategory}
+                onClick={() => void handleAddSubcategory()}
                 disabled={!selectedCategory || !newSubcategoryName.trim()}
               >
                 Add
