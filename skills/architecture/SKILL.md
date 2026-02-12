@@ -9,6 +9,10 @@ description: Component, hook, and page generation for this project.
 
 Use this skill whenever generating, refactoring, or reviewing React components, custom hooks, or Next.js pages within the `main` package of the Swiftpost monorepo.
 
+## Next
+
+This is a frontend only Next project, so it is exported as a static website. As such any next server feature is forbidden.
+
 ## Directory Strictness & Imports
 
 Do not guess import paths. Adhere strictly to the monorepo structure:
