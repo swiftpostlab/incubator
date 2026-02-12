@@ -1,7 +1,11 @@
-import SimplePageTemplate from '@/templates/SimplePageTemplate';
+import type { Metadata } from 'next';
+import ExpenseTrackerClient from './ExpenseTrackerClient';
 
-const Home: React.FC = () => {
-  return <SimplePageTemplate>{`Content`}</SimplePageTemplate>;
+export const metadata: Metadata = {
+  title: 'Expense Tracker | SwiftPost',
+  description: 'Complete personal finance management system.',
 };
 
-export default Home;
+export default function ExpenseTrackerPage() {
+  return <ExpenseTrackerClient />;
+}
