@@ -28,9 +28,11 @@ const StatCard: React.FC<Props> = ({
     <Box
       sx={{
         bgcolor: 'white',
-        borderRadius: 2,
+        borderRadius: 4,
         p: 3,
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        borderLeft: '4px solid',
+        borderLeftColor: color,
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
         '&:hover': {
           transform: 'translateY(-2px)',

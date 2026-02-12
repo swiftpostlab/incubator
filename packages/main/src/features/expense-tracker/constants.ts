@@ -116,6 +116,39 @@ export const CATEGORY_COLORS: Record<string, string> = {
 export const DEFAULT_CATEGORY_COLOR = '#6B7280';
 
 // ============================================================================
+// Theme Constants From old website (UI & Layout)
+// ============================================================================
+
+export const OLD_THEME = {
+  gradients: {
+    // The main purple/blue background for the whole app
+    body: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    // The logo box gradient in the sidebar
+    logo: 'linear-gradient(to bottom right, #6366f1, #9333ea)',
+  },
+  colors: {
+    // The light slate background for the main content area
+    appBackground: '#f8fafc',
+    // Sidebar navigation active states
+    navActiveBg: '#eef2ff',
+    navActiveBorder: '#6366f1',
+    navActiveText: '#4f46e5',
+    navHoverBg: '#f1f5f9',
+    navText: '#4b5563',
+  },
+  shadows: {
+    // Default card shadow
+    card: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+    // Card hover effect shadow
+    cardHover:
+      '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+  },
+  borderRadius: {
+    card: 4, // Corresponds to 16px in most MUI/Tailwind scales (4 * 4px)
+  },
+};
+
+// ============================================================================
 // Chart Color Palette (for dynamic assignment)
 // ============================================================================
 

@@ -15,6 +15,7 @@ import Sidebar from '@/components/expense-tracker/Sidebar';
 import Dashboard from '@/components/expense-tracker/Dashboard';
 import TransactionsView from '@/components/expense-tracker/TransactionsView';
 import SettingsView from '@/components/expense-tracker/SettingsView';
+import { OLD_THEME } from '@/features/expense-tracker/constants';
 
 type ViewType = 'dashboard' | 'transactions' | 'investments' | 'settings';
 
@@ -76,7 +77,7 @@ const ExpenseTrackerClient: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           minHeight: '100vh',
-          bgcolor: 'grey.100',
+          bgcolor: OLD_THEME.colors.appBackground,
         }}
       >
         <Stack spacing={2} alignItems="center">

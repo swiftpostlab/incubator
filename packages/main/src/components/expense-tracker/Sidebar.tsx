@@ -11,8 +11,9 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import SettingsIcon from '@mui/icons-material/Settings';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import { formatCurrency } from '@/features/expense-tracker/utils/formatters';
+//import { formatCurrency } from '@/features/expense-tracker/utils/formatters';
 import type { UserSettings } from '@/features/expense-tracker/types';
+import { OLD_THEME } from '@/features/expense-tracker/constants';
 
 type ViewType = 'dashboard' | 'transactions' | 'investments' | 'settings';
 
@@ -74,7 +75,7 @@ const Sidebar: React.FC<Props> = ({
         sx={{
           p: 3,
           borderBottom: '1px solid',
-          borderColor: 'grey.200',
+          borderColor: 'grey.100',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -100,7 +101,7 @@ const Sidebar: React.FC<Props> = ({
         </Button>
       </Box>
 
-      {/* Balance Card */}
+      {/* Balance Card
       <Box sx={{ p: 3 }}>
         <Box
           sx={{
@@ -135,7 +136,7 @@ const Sidebar: React.FC<Props> = ({
             </Box>
           </Stack>
         </Box>
-      </Box>
+      </Box> */}
 
       {/* Navigation */}
       <Stack component="nav" sx={{ px: 2, flex: 1 }} spacing={0.5}>
@@ -150,12 +151,29 @@ const Sidebar: React.FC<Props> = ({
               px: 2,
               py: 1.5,
               borderRadius: 2,
-              color:
-                currentView === item.id ? 'primary.main' : 'text.secondary',
+              borderLeft: '3px solid',
+              borderLeftColor:
+                currentView === item.id ?
+                  OLD_THEME.colors.navActiveBorder
+                : 'transparent',
               bgcolor:
-                currentView === item.id ? 'primary.light' : 'transparent',
+                currentView === item.id ?
+                  OLD_THEME.colors.navActiveBg
+                : 'transparent',
+              color:
+                currentView === item.id ?
+                  OLD_THEME.colors.navActiveText
+                : OLD_THEME.colors.navText,
+              fontWeight: currentView === item.id ? 600 : 400,
               '&:hover': {
-                bgcolor: currentView === item.id ? 'primary.light' : 'grey.100',
+                bgcolor:
+                  currentView === item.id ?
+                    OLD_THEME.colors.navActiveBg
+                  : OLD_THEME.colors.navHoverBg,
+                borderLeftColor:
+                  currentView === item.id ?
+                    OLD_THEME.colors.navActiveBorder
+                  : OLD_THEME.colors.navActiveBorder,
               },
             }}
             startIcon={item.icon}
@@ -173,7 +191,7 @@ const Sidebar: React.FC<Props> = ({
       </Stack>
 
       {/* Footer */}
-      <Box sx={{ p: 3, borderTop: '1px solid', borderColor: 'grey.200' }}>
+      <Box sx={{ p: 3, borderTop: '1px solid', borderColor: 'grey.100' }}>
         <Text variant="caption" color="text.secondary">
           Savings Rate: {stats.savingsRate.toFixed(1)}%
         </Text>
@@ -182,7 +200,7 @@ const Sidebar: React.FC<Props> = ({
             mt: 1,
             height: 6,
             borderRadius: 3,
-            bgcolor: 'grey.200',
+            bgcolor: '#e5e7eb',
             overflow: 'hidden',
           }}
         >

@@ -20,6 +20,7 @@ import type {
   MonthlyStats,
   CategoryStats,
 } from '@/features/expense-tracker/types';
+import { useTranslations } from 'next-intl';
 
 interface Stats {
   totalIncome: number;
@@ -47,6 +48,7 @@ const Dashboard: React.FC<Props> = ({
   settings,
   getCategoryColor,
 }) => {
+  const translation = useTranslations('dashboard');
   // Recent transactions (last 5)
   const recentTransactions = useMemo(() => {
     return transactions.slice(0, 5);
@@ -78,7 +80,7 @@ const Dashboard: React.FC<Props> = ({
         }}
       >
         <StatCard
-          title="Total Income"
+          title={translation('totalBalance')}
           value={formatCurrency(stats.totalIncome, settings.currency)}
           icon={<TrendingUpIcon />}
           color="success.main"
