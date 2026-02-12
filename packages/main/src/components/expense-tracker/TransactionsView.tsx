@@ -303,7 +303,9 @@ const TransactionsView: React.FC<Props> = ({
               color="error"
               size="small"
               startIcon={<DeleteIcon />}
-              onClick={handleBulkDelete}
+              onClick={() => {
+                void handleBulkDelete();
+              }}
             >
               Delete Selected
             </Button>
