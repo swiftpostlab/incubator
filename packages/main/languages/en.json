@@ -14,7 +14,9 @@
     "export": "Export",
     "import": "Import",
     "settings": "Settings",
-    "noData": "No data available"
+    "noData": "No data available",
+    "filters": "Filters",
+    "clear": "Clear"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -26,16 +28,21 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "overviewDash": "Overview of your financial status",
     "totalBalance": "Total Balance",
     "monthlyIncome": "Monthly Income",
     "monthlyExpenses": "Monthly Expenses",
     "savingsRate": "Savings Rate",
+    "goal": "Goal",
     "recentTransactions": "Recent Transactions",
     "expensesByCategory": "Expenses by Category",
-    "monthlyTrend": "Monthly Trend"
+    "monthlyTrend": "Monthly Trend",
+    "noExpense": "No expense data for this month yet.",
+    "noTransactions": "No transactions yet. Add your first transaction!"
   },
   "transactions": {
     "title": "Transactions",
+    "totalTransaction": "total transactions",
     "addTransaction": "Add Transaction",
     "editTransaction": "Edit Transaction",
     "date": "Date",
@@ -53,7 +60,8 @@
     "deleteConfirm": "Are you sure you want to delete this transaction?",
     "bulkUpdate": "Bulk Update",
     "selectAll": "Select All",
-    "deselectAll": "Deselect All"
+    "deselectAll": "Deselect All",
+    "selectedTransaction": "transaction(s) selected"
   },
   "categories": {
     "title": "Categories",
@@ -63,7 +71,8 @@
     "subcategories": "Subcategories",
     "addSubcategory": "Add Subcategory",
     "deleteConfirm": "Are you sure you want to delete this category?",
-    "hasTransactions": "This category has {count} transactions associated."
+    "hasTransactions": "This category has {count} transactions associated.",
+    "allCategories": "Tutte le Categorie"
   },
   "analytics": {
     "title": "Analytics",
