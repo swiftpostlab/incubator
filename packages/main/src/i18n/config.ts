@@ -8,7 +8,7 @@ export const getLocaleConfig = async () => {
   return {
     locale,
     messages: (
-      (await import(`../../messages/${locale}.json`)) as {
+      (await import(`../../languages/${locale}.json`)) as {
         default: Record<string, string>;
       }
     ).default,

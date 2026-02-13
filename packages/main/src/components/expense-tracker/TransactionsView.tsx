@@ -29,6 +29,7 @@ import type {
   CreateTransactionInput,
   UpdateTransactionInput,
 } from '@/features/expense-tracker/types';
+import { useTranslations } from 'next-intl';
 
 interface TransactionFilters {
   category?: string;
@@ -74,6 +75,10 @@ const TransactionsView: React.FC<Props> = ({
   onClearFilters,
   getCategoryColor,
 }) => {
+  const transactionsTranslations = useTranslations('transactions');
+  const commonTranslations = useTranslations('common');
+  const categoriesTranslations = useTranslations('categories');
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
@@ -193,10 +198,11 @@ const TransactionsView: React.FC<Props> = ({
       >
         <Box>
           <Text variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-            Transactions
+            {transactionsTranslations('title')}
           </Text>
           <Text variant="body2" color="text.secondary">
-            {allTransactions.length} total transactions
+            {allTransactions.length}{' '}
+            {transactionsTranslations('totalTransaction')}
           </Text>
         </Box>
         <Button
@@ -205,7 +211,7 @@ const TransactionsView: React.FC<Props> = ({
           onClick={handleAddClick}
           sx={{ alignSelf: { xs: 'stretch', sm: 'auto' } }}
         >
-          Add Transaction
+          {transactionsTranslations('addTransaction')}
         </Button>
       </Stack>
 
@@ -250,7 +256,9 @@ const TransactionsView: React.FC<Props> = ({
                 }}
                 displayEmpty
               >
-                <MenuItem value="">All Categories</MenuItem>
+                <MenuItem value="">
+                  {categoriesTranslations('allCategories')}
+                </MenuItem>
                 {Object.keys(categories).map((cat) => (
                   <MenuItem key={cat} value={cat}>
                     {cat}
@@ -266,7 +274,7 @@ const TransactionsView: React.FC<Props> = ({
                 setShowFilters(!showFilters);
               }}
             >
-              Filters
+              {commonTranslations('filters')}
             </Button>
             {(searchQuery || filterCategory) && (
               <Button
@@ -274,7 +282,7 @@ const TransactionsView: React.FC<Props> = ({
                 color="secondary"
                 onClick={handleClearFilters}
               >
-                Clear
+                {commonTranslations('clear')}
               </Button>
             )}
           </Stack>
@@ -297,7 +305,8 @@ const TransactionsView: React.FC<Props> = ({
             justifyContent="space-between"
           >
             <Text variant="body2">
-              {selectedIds.size} transaction(s) selected
+              {selectedIds.size}{' '}
+              {transactionsTranslations('selectedTransaction')}
             </Text>
             <Button
               color="error"
@@ -307,7 +316,7 @@ const TransactionsView: React.FC<Props> = ({
                 void handleBulkDelete();
               }}
             >
-              Delete Selected
+              {commonTranslations('delete')}
             </Button>
           </Stack>
         </Box>

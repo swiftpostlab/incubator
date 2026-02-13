@@ -48,7 +48,7 @@ const Dashboard: React.FC<Props> = ({
   settings,
   getCategoryColor,
 }) => {
-  const translation = useTranslations('dashboard');
+  const dashboardTranslations = useTranslations('dashboard');
   // Recent transactions (last 5)
   const recentTransactions = useMemo(() => {
     return transactions.slice(0, 5);
@@ -59,10 +59,10 @@ const Dashboard: React.FC<Props> = ({
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Text variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-          Dashboard
+          {dashboardTranslations('title')}
         </Text>
         <Text variant="body2" color="text.secondary">
-          Overview of your financial status
+          {dashboardTranslations('overviewDash')}
         </Text>
       </Box>
 
@@ -80,27 +80,27 @@ const Dashboard: React.FC<Props> = ({
         }}
       >
         <StatCard
-          title={translation('totalBalance')}
+          title={dashboardTranslations('monthlyIncome')}
           value={formatCurrency(stats.totalIncome, settings.currency)}
           icon={<TrendingUpIcon />}
           color="success.main"
           trend={stats.totalIncome > 0 ? 'up' : undefined}
         />
         <StatCard
-          title="Total Expenses"
+          title={dashboardTranslations('monthlyExpenses')}
           value={formatCurrency(stats.totalExpenses, settings.currency)}
           icon={<TrendingDownIcon />}
           color="error.main"
           trend={stats.totalExpenses > 0 ? 'down' : undefined}
         />
         <StatCard
-          title="Balance"
+          title={dashboardTranslations('totalBalance')}
           value={formatCurrency(stats.balance, settings.currency)}
           icon={<AccountBalanceIcon />}
           color={stats.balance >= 0 ? 'success.main' : 'error.main'}
         />
         <StatCard
-          title="Savings Rate"
+          title={dashboardTranslations('savingsRate')}
           value={`${stats.savingsRate.toFixed(1)}%`}
           icon={<SavingsIcon />}
           color={
@@ -108,7 +108,7 @@ const Dashboard: React.FC<Props> = ({
               'success.main'
             : 'warning.main'
           }
-          subtitle={`Goal: ${settings.savingsGoal}%`}
+          subtitle={`${dashboardTranslations('goal')}: ${settings.savingsGoal}%`}
         />
       </Box>
 
@@ -130,7 +130,7 @@ const Dashboard: React.FC<Props> = ({
           }}
         >
           <Text variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-            Expenses by Category
+            {dashboardTranslations('expensesByCategory')}
           </Text>
           {stats.topCategories.length > 0 ?
             <Stack spacing={2}>
@@ -185,7 +185,7 @@ const Dashboard: React.FC<Props> = ({
               ))}
             </Stack>
           : <Text variant="body2" color="text.secondary">
-              No expense data for this month yet.
+              {dashboardTranslations('noExpense')}
             </Text>
           }
         </Box>
@@ -200,7 +200,7 @@ const Dashboard: React.FC<Props> = ({
           }}
         >
           <Text variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-            Recent Transactions
+            {dashboardTranslations('recentTransactions')}
           </Text>
           {recentTransactions.length > 0 ?
             <Stack spacing={2}>
@@ -249,7 +249,7 @@ const Dashboard: React.FC<Props> = ({
               ))}
             </Stack>
           : <Text variant="body2" color="text.secondary">
-              No transactions yet. Add your first transaction!
+              {dashboardTranslations('noTransactions')}
             </Text>
           }
         </Box>
@@ -266,7 +266,7 @@ const Dashboard: React.FC<Props> = ({
         }}
       >
         <Text variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
-          Monthly Overview
+          {dashboardTranslations('monthlyTrend')}
         </Text>
         <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 1 }}>
           {stats.monthlyStats.slice(-6).map((month) => (

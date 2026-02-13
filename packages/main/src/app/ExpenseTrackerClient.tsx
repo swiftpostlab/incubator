@@ -16,10 +16,12 @@ import Dashboard from '@/components/expense-tracker/Dashboard';
 import TransactionsView from '@/components/expense-tracker/TransactionsView';
 import SettingsView from '@/components/expense-tracker/SettingsView';
 import { OLD_THEME } from '@/features/expense-tracker/constants';
+import { useLocaleSync } from '@/i18n/useLocaleSync';
 
 type ViewType = 'dashboard' | 'transactions' | 'investments' | 'settings';
 
 const ExpenseTrackerClient: React.FC = () => {
+  const { settings /* ... */ } = useExpenseData();
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -30,9 +32,10 @@ const ExpenseTrackerClient: React.FC = () => {
     categories,
     tags,
     globalFilter,
-    settings,
     actions: dataActions,
   } = useExpenseData();
+
+  useLocaleSync(settings.locale);
 
   const {
     transactions,
