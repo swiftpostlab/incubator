@@ -12,7 +12,7 @@ import {
   formatCurrency,
   formatDate,
 } from '@/features/expense-tracker/utils/formatters';
-import StatCard from '@/components/expense-tracker/StatCard';
+import StatCard from '@/features/expense-tracker/components/StatCard';
 import type {
   Transaction,
   Categories,

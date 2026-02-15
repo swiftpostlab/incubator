@@ -21,7 +21,7 @@ import {
   formatCurrency,
   formatDate,
 } from '@/features/expense-tracker/utils/formatters';
-import TransactionFormModal from '@/components/expense-tracker/TransactionFormModal';
+import TransactionFormModal from '@/features/expense-tracker/components/TransactionFormModal';
 import type {
   Transaction,
   Categories,
