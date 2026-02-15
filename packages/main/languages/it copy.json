@@ -1,7 +1,7 @@
 {
   "common": {
-    "appName": "Spesometro",
-    "loading": "Caricamento",
+    "appName": "Spesometro", //?
+    "loading": "Caricamento", // M
     "save": "Salva",
     "cancel": "Annulla",
     "delete": "Elimina",
@@ -14,17 +14,17 @@
     "export": "Esporta",
     "import": "Importa",
     "settings": "Impostazioni",
-    "noData": "Nessun dato disponibile",
+    "noData": "Nessun dato disponibile", //->
     "filters": "Filtri",
     "clear": "Cancella"
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "transactions": "Transazioni",
-    "analytics": "Analisi",
-    "investments": "Investimenti",
-    "investmentLog": "Registro Investimenti",
-    "settings": "Impostazioni"
+    "dashboard": "Dashboard", // use title
+    "transactions": "Transazioni", // use title
+    "analytics": "Analisi", // use title
+    "investments": "Investimenti", // use title
+    "investmentLog": "Registro Investimenti", // use title
+    "settings": "Impostazioni" // use title
   },
   "dashboard": {
     "title": "Dashboard",
