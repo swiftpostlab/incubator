@@ -11,10 +11,10 @@ import { useExpenseData } from '@/features/expense-tracker/hooks/useExpenseData'
 import { useTransactions } from '@/features/expense-tracker/hooks/useTransactions';
 import { useCategories } from '@/features/expense-tracker/hooks/useCategories';
 import { useStats } from '@/features/expense-tracker/hooks/useStats';
-import Sidebar from '@/components/expense-tracker/Sidebar';
-import Dashboard from '@/components/expense-tracker/Dashboard';
-import TransactionsView from '@/components/expense-tracker/TransactionsView';
-import SettingsView from '@/components/expense-tracker/SettingsView';
+import Sidebar from '@/features/expense-tracker/components/Sidebar';
+import Dashboard from '@/features/expense-tracker/components/Dashboard';
+import TransactionsView from '@/features/expense-tracker/components/TransactionsView';
+import SettingsView from '@/features/expense-tracker/components/SettingsView';
 import { OLD_THEME } from '@/features/expense-tracker/constants';
 import { useLocaleSync } from '@/i18n/useLocaleSync';
 
