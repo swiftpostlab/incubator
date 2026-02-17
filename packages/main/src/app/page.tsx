@@ -1,11 +1,20 @@
-import type { Metadata } from 'next';
-import ExpenseTrackerClient from './ExpenseTrackerClient';
+import BasePageTemplate from '@/templates/BasePageTemplate';
+import Stack from '@swiftpost/elysium/ui/base/Stack';
+import Link from '@swiftpost/elysium/ui/Link';
 
-export const metadata: Metadata = {
-  title: 'Expense Tracker | SwiftPost',
-  description: 'Complete personal finance management system.',
+const Home: React.FC = () => {
+  return (
+    <BasePageTemplate>
+      <Stack alignItems="left" justifyContent="center" padding={4}>
+        <Link href="/expense-tracker">{'Expense Tracker'}</Link>
+        <Link href="/analytics-tools">{'Analytics Tools'}</Link>
+        <Link href="/economic-bubble-analysis">
+          {'Economic Bubble Analysis'}
+        </Link>
+        {/* Add here more links when creating new features */}
+      </Stack>
+    </BasePageTemplate>
+  );
 };
 
-export default function ExpenseTrackerPage() {
-  return <ExpenseTrackerClient />;
-}
+export default Home;

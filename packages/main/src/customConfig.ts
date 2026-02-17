@@ -2,7 +2,7 @@ import { CustomConfig } from './types';
 
 export const customConfig: CustomConfig = {
   author: {
-    name: 'SwiftPost',
+    name: 'Incubator',
     email: 'swiftpostlab@gmail.com',
   },
 };
