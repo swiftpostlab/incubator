@@ -13,12 +13,17 @@
   "dependencies": {
     "@mui/icons-material": "^7",
     "@swiftpost/elysium": "*",
-    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-query": "^5.62.0",
     "apisauce": "^3.2.2",
+    "date-fns": "^4.1.0",
     "dexie": "^4.3.0",
     "dexie-react-hooks": "^4.2.0",
     "next-intl": "^4.8.2",
-    "zod": "^4.3.6"
+    "papaparse": "^5.5.3",
+    "recharts": "^2.15.0",
+    "simple-statistics": "^7.8.3",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
   },
   "peerDependencies": {
     "@mui/material": "^7",
@@ -27,8 +32,7 @@
     "react-dom": "*"
   },
   "devDependencies": {
-    "@swiftpost/config": "*",
-    "typescript": "*",
-    "typescript-eslint": "*"
+    "@types/papaparse": "^5.5.2",
+    "@types/xlsx": "^0.0.36"
   }
 }
