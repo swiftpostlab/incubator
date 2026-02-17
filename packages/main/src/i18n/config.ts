@@ -1,6 +1,12 @@
-export const locales = ['en', 'it'] as const;
-export type Locale = (typeof locales)[number];
-export const defaultLocale: Locale = 'en';
+export const supportedLanguages = {
+  EN: 'en',
+  IT: 'it',
+} as const;
+
+// export const locales = ['en', 'it'] as const;
+export type SupportedLanguage =
+  (typeof supportedLanguages)[keyof typeof supportedLanguages];
+export const defaultLocale = supportedLanguages.EN;
 
 export const getLocaleConfig = async () => {
   const locale = defaultLocale;
@@ -8,7 +14,7 @@ export const getLocaleConfig = async () => {
   return {
     locale,
     messages: (
-      (await import(`../../languages/${locale}.json`)) as {
+      (await import(`./translations/${locale}.json`)) as {
         default: Record<string, string>;
       }
     ).default,

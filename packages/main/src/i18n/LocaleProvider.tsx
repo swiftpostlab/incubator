@@ -8,23 +8,24 @@ import {
   useContext,
 } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
-import type { Locale } from '@/i18n/config';
-import { locales, defaultLocale } from '@/i18n/config';
+import type { SupportedLanguage } from '@/i18n/config';
+import { defaultLocale, supportedLanguages } from '@/i18n/config';
 
 // Pre-import all message bundles for static export
-import enMessages from '../../languages/en.json';
-import itMessages from '../../languages/it.json';
+import enMessages from './translations/en.json';
+import itMessages from './translations/it.json';
 
-const messagesMap: Record<Locale, typeof enMessages> = {
-  en: enMessages,
-  it: itMessages,
-};
+type TranslationDataType = Record<string, unknown> | null | undefined;
+
+const messagesMap: Record<SupportedLanguage, TranslationDataType> = {
+  [supportedLanguages.EN]: enMessages as TranslationDataType,
+  [supportedLanguages.IT]: itMessages as TranslationDataType,
+} as const;
 
 const LOCALE_STORAGE_KEY = 'expense-tracker-locale';
-
 interface LocaleContextValue {
-  locale: Locale;
-  setLocale: (locale: Locale) => void;
+  locale: SupportedLanguage;
+  setLocale: (locale: SupportedLanguage) => void;
 }
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -41,15 +42,18 @@ export const useLocale = (): LocaleContextValue => {
  * Reads the initial locale from localStorage (synced from IndexedDB settings).
  * Falls back to defaultLocale if not found or invalid.
  */
-const getInitialLocale = (): Locale => {
+const getInitialLocale = (): SupportedLanguage => {
   if (typeof window === 'undefined') {
     return defaultLocale;
   }
 
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (stored && locales.includes(stored as Locale)) {
-      return stored as Locale;
+    if (
+      stored &&
+      Object.hasOwn(supportedLanguages, stored as SupportedLanguage)
+    ) {
+      return stored as SupportedLanguage;
     }
   } catch {
     // Silent fail for SSR or localStorage errors
@@ -63,7 +67,7 @@ interface Props {
 }
 
 const LocaleProvider: React.FC<Props> = ({ children }) => {
-  const [locale, setLocaleState] = useState<Locale>(defaultLocale);
+  const [locale, setLocaleState] = useState<SupportedLanguage>(defaultLocale);
   const [isHydrated, setIsHydrated] = useState(false);
 
   // Hydrate locale from storage on mount
@@ -75,8 +79,8 @@ const LocaleProvider: React.FC<Props> = ({ children }) => {
 
   // Listen for locale changes from settings (via custom event)
   useEffect(() => {
-    const handleLocaleChange = (event: CustomEvent<Locale>) => {
-      if (locales.includes(event.detail)) {
+    const handleLocaleChange = (event: CustomEvent<SupportedLanguage>) => {
+      if (Object.hasOwn(supportedLanguages, event.detail)) {
         setLocaleState(event.detail);
       }
     };
@@ -93,8 +97,8 @@ const LocaleProvider: React.FC<Props> = ({ children }) => {
     };
   }, []);
 
-  const setLocale = useCallback((newLocale: Locale) => {
-    if (!locales.includes(newLocale)) {
+  const setLocale = useCallback((newLocale: SupportedLanguage) => {
+    if (!Object.hasOwn(supportedLanguages, newLocale)) {
       return;
     }
 

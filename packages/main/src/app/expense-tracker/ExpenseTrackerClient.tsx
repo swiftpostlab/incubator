@@ -16,7 +16,7 @@ import Dashboard from '@/features/expense-tracker/components/Dashboard';
 import TransactionsView from '@/features/expense-tracker/components/TransactionsView';
 import SettingsView from '@/features/expense-tracker/components/SettingsView';
 import { OLD_THEME } from '@/features/expense-tracker/constants';
-import { useLocaleSync } from '@/i18n/useLocaleSync';
+import { useTranslationsConfig } from '@/i18n/useTranslationsConfig';
 
 type ViewType = 'dashboard' | 'transactions' | 'investments' | 'settings';
 
@@ -35,7 +35,7 @@ const ExpenseTrackerClient: React.FC = () => {
     actions: dataActions,
   } = useExpenseData();
 
-  useLocaleSync(settings.locale);
+  useTranslationsConfig(settings.locale);
 
   const {
     transactions,
