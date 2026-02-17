@@ -45,12 +45,12 @@
     "totalTransaction": "transazioni totali",
     "addTransaction": "Aggiungi Transazione",
     "editTransaction": "Modifica Transazione",
-    "date": "Data",
-    "category": "Categoria",
-    "subcategory": "Sottocategoria",
+    "date": "Data", // move to common
+    "category": "Categoria", // move to category?
+    "subcategory": "Sottocategoria", // move to category?
     "amount": "Importo",
-    "from": "Da",
-    "to": "A",
+    "from": "Da", // move to common
+    "to": "A", // move to common
     "notes": "Note",
     "tags": "Tag",
     "tracked": "Tracciato",
