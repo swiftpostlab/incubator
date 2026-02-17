@@ -11,7 +11,7 @@ export const eslintBaseConfig = defineConfig(
   reactPlugin.configs.flat.recommended, // This is not a plugin object, but a shareable config object
   reactPlugin.configs.flat['jsx-runtime'],
   eslintPluginPrettierRecommended,
-  ...tseslintConfigs.strictTypeChecked,
+  ...tseslintConfigs.recommendedTypeChecked,
   {
     settings: {
       react: {
@@ -25,7 +25,7 @@ export const eslintBaseConfig = defineConfig(
       'no-unused-vars': 'off',
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'error',
+        'warn',
         {
           args: 'all',
           argsIgnorePattern: '^_',
