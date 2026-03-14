@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import type { SupportedLanguage } from '@/i18n/config';
-import { supportedLanguages } from '@/i18n/config';
-
-const LOCALE_STORAGE_KEY = 'user-locale';
+import { LOCALE_STORAGE_KEY, isSupportedLanguage } from '@/i18n/config';
 
 /**
  * Syncs the locale from expense tracker settings to localStorage and
@@ -11,7 +9,7 @@ const LOCALE_STORAGE_KEY = 'user-locale';
  * Call this whenever settings.locale changes.
  */
 export const syncLocaleToProvider = (locale: SupportedLanguage): void => {
-  if (!Object.hasOwn(supportedLanguages, locale)) {
+  if (!isSupportedLanguage(locale)) {
     return;
   }
 

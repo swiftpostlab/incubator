@@ -9,7 +9,12 @@ import {
 } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
 import type { SupportedLanguage } from '@/i18n/config';
-import { defaultLocale, supportedLanguages } from '@/i18n/config';
+import {
+  LOCALE_STORAGE_KEY,
+  defaultLocale,
+  isSupportedLanguage,
+  supportedLanguages,
+} from '@/i18n/config';
 
 // Pre-import all message bundles for static export
 import enMessages from './translations/en.json';
@@ -22,7 +27,6 @@ const messagesMap: Record<SupportedLanguage, TranslationDataType> = {
   [supportedLanguages.IT]: itMessages as TranslationDataType,
 } as const;
 
-const LOCALE_STORAGE_KEY = 'expense-tracker-locale';
 interface LocaleContextValue {
   locale: SupportedLanguage;
   setLocale: (locale: SupportedLanguage) => void;
@@ -49,11 +53,8 @@ const getInitialLocale = (): SupportedLanguage => {
 
   try {
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
-    if (
-      stored &&
-      Object.hasOwn(supportedLanguages, stored as SupportedLanguage)
-    ) {
-      return stored as SupportedLanguage;
+    if (stored && isSupportedLanguage(stored)) {
+      return stored;
     }
   } catch {
     // Silent fail for SSR or localStorage errors
@@ -80,7 +81,7 @@ const LocaleProvider: React.FC<Props> = ({ children }) => {
   // Listen for locale changes from settings (via custom event)
   useEffect(() => {
     const handleLocaleChange = (event: CustomEvent<SupportedLanguage>) => {
-      if (Object.hasOwn(supportedLanguages, event.detail)) {
+      if (isSupportedLanguage(event.detail)) {
         setLocaleState(event.detail);
       }
     };
@@ -98,7 +99,7 @@ const LocaleProvider: React.FC<Props> = ({ children }) => {
   }, []);
 
   const setLocale = useCallback((newLocale: SupportedLanguage) => {
-    if (!Object.hasOwn(supportedLanguages, newLocale)) {
+    if (!isSupportedLanguage(newLocale)) {
       return;
     }
 
