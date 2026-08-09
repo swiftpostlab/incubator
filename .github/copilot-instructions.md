@@ -26,96 +26,122 @@ I am an adult and can bear being told I am wrong. If something in my line of tho
 
 ## Project Skills
 
-Project skills are located in `.agents/skills/` and automatically load in Copilot based on context and trigger phrases. Shared skills are declared in `.agents/skills.json` and synced from the installed `agentic-tools` package; SwiftPost-specific skills remain local in this repository.
+Project skills are located in `.agents/skills/` and automatically load in Copilot based on context and trigger phrases. Shared skills are declared in `.agents/skills.json` and synced from the installed `agentic-tools` package as symlinks; SwiftPost-specific skills remain committed in this repository.
+
+Skill names follow the sharing-spec grammar `ref-<owner-prefix>-<domain>-<topic>` and `tool-<owner-prefix>-<verb>-<topic>`. Shared skills use the `sp` prefix; this repo's own skills use `spst`. Because both live in the same directory, never reuse the `sp` prefix for a local skill — see `ref-sp-agents-shareable-skills`.
 
 ### Available Skills
 
-**Shared skills from `agentic-tools`:**
+**Shared skills from `agentic-tools`** (owner prefix `sp`, synced — never edit in place):
 
-**`ref-agents-instructions-authoring`** — Multi-provider agent instruction structure
+**`ref-sp-agents-adversarial-review`** — Review by a reviewer structurally separated from the author
+- Use when: deciding whether a change is safe to accept, or checking code against the repo's own skills
+
+**`ref-sp-agents-hooks`** — Agent lifecycle hooks across Claude, Copilot CLI, VS Code, and Gemini
+- Use when: creating or editing a hook, choosing a lifecycle event, or debugging why a hook does not fire
+
+**`ref-sp-agents-instructions-authoring`** — Multi-provider agent instruction structure
 - Use when: updating Copilot, Gemini, or Claude instruction bridges
 
-**`ref-agents-local-tasks`** — Portable local backlog and task-note workflow
+**`ref-sp-agents-local-tasks`** — Portable local backlog and task-note workflow
 - Use when: reading or updating local task tracking; in this repo, apply the workflow to `.tasks/` per Local Agent Workspaces below
 
-**`ref-agents-persona`** — Agent voice and workflow expectations
+**`ref-sp-agents-mr-wolf-persona`** — Agent voice and workflow expectations
 - Use when: starting work, planning commits, or preserving the expected collaboration style
 
-**`ref-agents-security`** — Agent security policy, protected files, exclusion sync, and multi-client enforcement
+**`ref-sp-agents-retro`** — Retrospective notes after substantial work
+- Use when: recording what went well or wrong, or reading past retros before similar work; in this repo, keep retro notes under `.tasks/` unless the user explicitly asks for the portable `.agents/retro/` layout
+
+**`ref-sp-agents-security`** — Agent security policy, protected files, exclusion sync, and multi-client enforcement
 - Use when: changing `.ai-policy.json`, generated restriction files, sync behavior, or protected/excluded file policy
 
-**`ref-app-react-next`** — App-level React/Next guidance
-- Use when: shaping whole-app React/Next structure or stack decisions
+**`ref-sp-agents-shareable-skills`** — Skill naming grammar, domain registry, visibility tiers, dependencies
+- Use when: naming or renaming a skill, setting owner/domain/visibility, or validating a skill for export
 
-**`ref-coding-patterns`** — Portable coding defaults
-- Use when: choosing naming, typing, comments, CLI ergonomics, or testing posture
-
-**`ref-docs-authoring`** — README and documentation authoring
-- Use when: writing or restructuring docs and examples
-
-**`ref-git-commits`** — Commit grouping and message guidance
-- Use when: creating focused commits or deciding commit boundaries
-
-**`ref-github-actions-ci`** — GitHub Actions CI guidance
-- Use when: creating or reviewing workflows
-
-**`ref-github-dependabot`** — Dependabot configuration guidance
-- Use when: tuning dependency update configuration
-
-**`ref-js-javascript`** — Plain JavaScript with JSDoc guidance
-- Use when: writing scripts or JS modules without TypeScript compilation
-
-**`ref-js-next`** — Next.js App Router guidance
-- Use when: creating routes, layouts, and Next-specific boundaries
-
-**`ref-js-react`** — React component and hook guidance
-- Use when: writing or reviewing React components
-
-**`ref-js-typescript`** — TypeScript typing and runtime-boundary guidance
-- Use when: writing or reviewing strict TypeScript code
-
-**`ref-projects-architecture`** — Portable feature and repository architecture
-- Use when: deciding where code should live or splitting features
-
-**`ref-skills-authoring`** — Skill authoring standards
+**`ref-sp-agents-skills-authoring`** — Skill authoring standards
 - Use when: creating or maintaining skills
 
-**`tool-commit`** — Focused commit workflow
+**`ref-sp-agents-verification-discipline`** — Verification routing, calibration, and explicit abstention
+- Use when: acting on an unverified claim, choosing between root causes, or calibrating stated confidence
+
+**`ref-sp-dev-coding-patterns`** — Portable coding defaults
+- Use when: choosing naming, typing, comments, CLI ergonomics, or testing posture
+
+**`ref-sp-dev-docs-authoring`** — README and documentation authoring
+- Use when: writing or restructuring docs and examples
+
+**`ref-sp-dev-git-commits`** — Commit grouping and message guidance
+- Use when: creating focused commits or deciding commit boundaries
+
+**`ref-sp-dev-github-actions-ci`** — GitHub Actions CI guidance
+- Use when: creating or reviewing workflows
+
+**`ref-sp-dev-github-dependabot`** — Dependabot configuration guidance
+- Use when: tuning dependency update configuration
+
+**`ref-sp-dev-projects-architecture`** — Portable feature and repository architecture
+- Use when: deciding where code should live or splitting features
+
+**`ref-sp-js-javascript`** — Plain JavaScript with JSDoc guidance
+- Use when: writing scripts or JS modules without TypeScript compilation
+
+**`ref-sp-js-next`** — Next.js App Router guidance
+- Use when: creating routes, layouts, and Next-specific boundaries
+
+**`ref-sp-js-next-template`** — App-level React/Next guidance
+- Use when: shaping whole-app React/Next structure or stack decisions
+
+**`ref-sp-js-react`** — React component and hook guidance
+- Use when: writing or reviewing React components
+
+**`ref-sp-js-typescript`** — TypeScript typing and runtime-boundary guidance
+- Use when: writing or reviewing strict TypeScript code
+
+**`tool-sp-commit`** — Focused commit workflow
 - Use when: staging and committing changed files
 
-**`tool-handle-agents-local-tasks`** — Work through local task backlog
+**`tool-sp-create-skill`** — Guided new-skill scaffold
+- Use when: adding a new skill or turning repeated guidance into one
+
+**`tool-sp-handle-agents-local-tasks`** — Work through local task backlog
 - Use when: processing the local task backlog; in this repo, use `.tasks/TODO.md` unless the user explicitly asks for the portable `.agents/tasks/` layout
 
-**`tool-maintain-agents-instructions`** — Refresh agent instruction files
+**`tool-sp-maintain-agents-instructions`** — Refresh agent instruction files
 - Use when: instruction files may be stale after skill or workflow changes
 
-**`tool-maintain-skills`** — Refresh and consolidate project skills
+**`tool-sp-maintain-skills`** — Refresh and consolidate project skills
 - Use when: skills may be outdated or duplicated
 
-**SwiftPost-specific local skills:**
+**`tool-sp-make-skill-shareable`** — Review and set a skill's shareability metadata
+- Use when: a skill lacks sharing metadata, or its portability is unclear
 
-**`ref-swiftpost-site-architecture`** — SwiftPost Site Template architecture and package boundaries
+**`tool-sp-run-adversarial-review`** — Run an adversarial review of a change
+- Use when: a separate agent should red-team code, skills, security, or end-to-end behavior
+
+**SwiftPost-specific local skills** (owner prefix `spst`, committed in this repo):
+
+**`ref-spst-dev-site-architecture`** — SwiftPost Site Template architecture and package boundaries
 - Use when: designing features, structuring components, or deciding where code goes
 
-**`ref-swiftpost-styling`** — SwiftPost styling, Slots/SlotProps, responsive layout, and `sx` guidance
+**`ref-spst-js-styling`** — SwiftPost styling, Slots/SlotProps, responsive layout, and `sx` guidance
 - Use when: building UI, shaping reusable styling APIs, or working with Elysium/MUI `sx` styles
 
-**`ref-swiftpost-elysium`** — SwiftPost Elysium package reference
+**`ref-spst-js-elysium`** — SwiftPost Elysium package reference
 - Use when: working with Elysium components, import paths, wrappers, or theming helpers
 
-**`ref-swiftpost-main`** — Main app package overview
+**`ref-spst-dev-main-package`** — Main app package overview
 - Use when: working in `packages/main` or deciding whether logic belongs in the app package
 
-**`ref-swiftpost-config`** — Shared config package overview
+**`ref-spst-dev-config-package`** — Shared config package overview
 - Use when: editing `packages/config` or changing shared tooling defaults
 
-**`ref-swiftpost-code-conventions`** — TypeScript and React code quality standards
+**`ref-spst-dev-code-conventions`** — TypeScript and React code quality standards
 - Use when: creating components, writing hooks, or reviewing TypeScript code
 
-**`ref-swiftpost-next`** — Template-specific Next.js conventions
+**`ref-spst-js-next`** — Template-specific Next.js conventions
 - Use when: creating pages, working with static export routing, or configuring Next.js
 
-**`tool-adopt-swiftpost-site-template`** — Adopt this template elsewhere
+**`tool-spst-adopt-template`** — Adopt this template elsewhere
 - Use when: porting this template's skills, setup, or AI-safety tooling into another repo
 
 ## Workflow
@@ -127,14 +153,14 @@ When working on this project:
 3. **Code**: Follow conventions in the relevant skills
 4. **Validate**: Run lint and type-check
 5. **Commit**: Small, focused commits after validation passes
-6. **Reflect**: Review what happened in the session, identify both corrections and durable lessons, and decide whether any skill or instruction should be updated. Summarize the result to the user and ask if they want the guidance updated. If yes, update the relevant skill using `ref-skills-authoring`, and after editing suggest a follow-up maintenance pass with `tool-maintain-skills`.
+6. **Reflect**: Review what happened in the session, identify both corrections and durable lessons, and decide whether any skill or instruction should be updated. Summarize the result to the user and ask if they want the guidance updated. If yes, update the relevant skill using `ref-sp-agents-skills-authoring`, and after editing suggest a follow-up maintenance pass with `tool-sp-maintain-skills`.
 
 ## Local Agent Workspaces
 
 - Use `.playground/` for temporary helper scripts, scratch files, and generated local artifacts that should not enter normal repo context.
 - Use `.tasks/` for local task tracking, task briefs, validation notes, and other ignored planning artifacts.
 - Both folders are ignored by Git and listed in `.ai-policy.json` `excludedFiles`; do not put committed source, durable documentation, or secrets there.
-- If a shared portable skill mentions `.agents/playground/` or `.agents/tasks/`, use `.playground/` and `.tasks/` in this repository unless the user explicitly asks for the portable layout.
+- If a shared portable skill mentions `.agents/playground/`, `.agents/tasks/`, or `.agents/retro/`, use `.playground/` and `.tasks/` in this repository unless the user explicitly asks for the portable layout.
 
 For AI-assisted terminal runs, prefer the `:ci` variants of Turbo tasks because `--ui stream` avoids the interactive TUI and produces clean captured output.
 
