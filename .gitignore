@@ -39,5 +39,6 @@ yarn-error.log*
 next-env.d.ts
 
 # local agent workspaces
-/.playground/
-/.tasks/
+/.agents/playground/
+/.agents/tasks/
+/.agents/retro/
