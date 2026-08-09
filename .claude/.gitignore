@@ -1,0 +1,2 @@
+# Ignore .claude/skills, it just symlinks .agents/skills
+skills

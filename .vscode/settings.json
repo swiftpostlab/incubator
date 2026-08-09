@@ -1,4 +1,5 @@
 {
+  "chat.useAgentsMdFile": true,
   "files.eol": "\n",
   "files.insertFinalNewline": true,
   "editor.codeActionsOnSave": {
