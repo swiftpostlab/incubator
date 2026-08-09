@@ -22,6 +22,12 @@ Define the Next.js-specific rules and constraints for this static-export project
 - Configuring Next.js (next.config.ts, metadata, etc.).
 - Deciding between server and client components.
 
+## Scope Boundaries
+
+- Use this skill for the constraints that are specific to this template: static-export limits, the `page.tsx` + `ClientWrapper.tsx` pattern, Elysium routing wrappers, and `staticTheme` access.
+- Use `ref-sp-js-next` for portable Next.js guidance — App Router structure, general client/server boundary defaults, and framework integrations. This skill layers on top of it and does not restate it.
+- Use `ref-spst-dev-site-architecture` when the question is about package boundaries or where a file belongs rather than a Next.js rule.
+
 ## Core Constraint: Static Export Only
 
 This is a **frontend-only** Next.js project exported as a static website. The following server features are **forbidden**:
