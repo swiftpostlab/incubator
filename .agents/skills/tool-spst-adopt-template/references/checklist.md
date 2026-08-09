@@ -30,10 +30,10 @@ Use this checklist when transplanting this repo's skills and AI-policy tooling i
 - Did you copy `scripts/sync-ai-policy.mts` or an adapted equivalent?
 - Did you add package scripts such as `sync:ai-policy` and `sync:ai-policy:import-vscode`?
 - AI guardrail behavior belongs in shared `ref-sp-agents-security` plus the top-level restricted-file policy summary.
-- If the target uses root-level local agent workspaces, did you add `.playground/` and `.tasks/` to both Git ignore rules and the AI exclusion policy?
+- Did you add `.agents/playground/`, `.agents/tasks/`, and `.agents/retro/` to both Git ignore rules and the AI exclusion policy?
 - Did you wire `prepare` or another bootstrap path so the generated policy files stay in sync?
 - Did you regenerate `.aiexclude`, `.claude/settings.json`, and `.vscode/settings.json` instead of treating them as hand-edited source files?
-- Did you update `.claude/CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` or the target repo's equivalent entry points to reference the shared policy model?
+- Did you put the real guidance in a root `AGENTS.md` and reduce `.claude/CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` to thin bridges pointing at it?
 
 ## Final Checks
 

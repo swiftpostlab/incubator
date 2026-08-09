@@ -183,13 +183,13 @@ Start with the skills that are most transferable across projects:
 - shared `tool-sp-maintain-skills` for keeping top-level instructions slim and moving detail into the right skills.
 - `ref-spst-dev-code-conventions` if the target repo is also TypeScript/React or close enough to adapt it quickly.
 - `ref-spst-dev-site-architecture`, `ref-spst-js-styling`, and `ref-spst-js-next` only if the target repo has the same broad problem space.
-- shared `ref-sp-agents-local-tasks` and `tool-sp-handle-agents-local-tasks` if the target repo wants local task tracking; adapt their portable `.agents/tasks/` default to `.tasks/` when using this template's root-level workspace convention.
+- shared `ref-sp-agents-local-tasks`, `ref-sp-agents-retro`, and `tool-sp-handle-agents-local-tasks` if the target repo wants local task tracking and retrospectives; this template uses their portable `.agents/` layout directly, so no path translation is needed.
 
 Do **not** copy SwiftPost-specific skills unchanged into another repo. Skills such as `ref-spst-js-elysium`, `ref-spst-dev-main-package`, and `ref-spst-dev-config-package` should be treated as examples of package-specific skills, not as generic reusable guidance.
 
 ## Top-Level Instructions: Personality Export
 
-When this skill tells an agent to export or transplant the repo's top-level instructions into another repo, the `## Personality` section from `.github/copilot-instructions.md` should be exported verbatim, not paraphrased.
+When this skill tells an agent to export or transplant the repo's top-level instructions into another repo, the `## Personality` section from the root `AGENTS.md` should be exported verbatim, not paraphrased. That block is itself inlined from `ref-sp-agents-mr-wolf-persona`, which stays canonical — prefer re-inlining from the skill when the target repo carries it.
 
 - Keep the personality text exactly as written unless the user explicitly asks to rewrite it.
 - Treat this as intentional author voice, not incidental wording to be normalized.
@@ -203,8 +203,8 @@ For the AI-safety system, the important source files are:
 - `.ai-policy.json` as the source of truth.
 - `scripts/sync-ai-policy.mts` as the sync implementation.
 - `package.json` scripts that run the sync, especially `sync:ai-policy`, `sync:ai-policy:import-vscode`, and the `prepare` hook.
-- `.claude/CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` if the target repo wants the same cross-agent routing pattern.
-- `.playground/` as ignored local agent scratch space and `.tasks/` as ignored local task tracking, when the target wants root-level local workspaces.
+- the root `AGENTS.md` as the single source of truth, plus thin `.claude/CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md` bridges, if the target repo wants the same cross-agent routing pattern.
+- `.agents/playground/`, `.agents/tasks/`, and `.agents/retro/` as ignored local agent workspaces, each with a committed placeholder `.gitignore` so the directory survives a clone.
 
 Generated files should usually be regenerated in the target repo instead of copied as authoritative source:
 
@@ -239,7 +239,7 @@ Copying generated outputs temporarily is acceptable to bootstrap the target repo
    - Copy `.ai-policy.json` and `scripts/sync-ai-policy.mts`.
    - Add the sync scripts to the target repo's `package.json`.
    - Wire the target repo's Copilot, Claude, and Gemini entry-point docs to honor the shared policy model.
-   - For this repo's pattern specifically, keep `GEMINI.md` at repo root, keep Claude's entry file at `.claude/CLAUDE.md`, and prefer repo-root `@.github/copilot-instructions.md` imports over relative import paths.
+   - For this repo's pattern specifically, keep the real guidance in the root `AGENTS.md`, keep `GEMINI.md` at repo root, and keep Claude's entry file at `.claude/CLAUDE.md`; each bridge is a single `@` import resolving to the root `AGENTS.md`. Use `tool-sp-setup-agent-repo` to audit the result.
    - Regenerate outputs in the target repo instead of preserving stale generated files from this repo.
 5. Regenerate the target repo outputs.
    - Run `yarn sync:ai-policy` or the equivalent adapted package-manager command.

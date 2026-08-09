@@ -41,14 +41,15 @@ For Next.js-specific constraints and page patterns, see the **ref-spst-js-next**
 
 ## Local Agent Workspaces
 
-The root-level `.playground/` and `.tasks/` directories are local-only agent workspaces. They are ignored by Git and excluded from AI context through `.ai-policy.json`.
+The `.agents/playground/`, `.agents/tasks/`, and `.agents/retro/` directories are local-only agent workspaces. They are ignored by Git and excluded from AI context through `.ai-policy.json`. Each keeps a committed placeholder `.gitignore` so the directory survives a clone.
 
 | Path | Purpose | Rule |
 |------|---------|------|
-| `.playground/` | Temporary helper scripts, scratch files, generated local artifacts, and other short-lived agent work. | Do not put committed source, durable documentation, or secrets here. Promote anything reusable into the proper package, script, doc, or skill. |
-| `.tasks/` | Local task tracking, backlog notes, task briefs, validation notes, and temporary planning artifacts. | Keep it local and current. Promote durable decisions into committed docs or skills instead of relying on ignored notes. |
+| `.agents/playground/` | Temporary helper scripts, scratch files, generated local artifacts, and other short-lived agent work. | Do not put committed source, durable documentation, or secrets here. Promote anything reusable into the proper package, script, doc, or skill. |
+| `.agents/tasks/` | Local task tracking, backlog notes, task briefs, validation notes, and temporary planning artifacts. | Keep it local and current. Promote durable decisions into committed docs or skills instead of relying on ignored notes. See `ref-sp-agents-local-tasks` for the lifecycle. |
+| `.agents/retro/` | Retrospectives captured at the end of substantial work. | Read past retros before similar work. See `ref-sp-agents-retro` for the format. |
 
-If a shared skill describes `.agents/playground/` or `.agents/tasks/` as a portable default, use `.playground/` and `.tasks/` in this repository unless the user explicitly asks for the portable layout.
+This repository follows the portable `.agents/` layout directly, so no path translation is needed when a shared skill refers to it.
 
 ## `packages/main/src/` Directory Map
 
