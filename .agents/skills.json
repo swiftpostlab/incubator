@@ -18,7 +18,9 @@
         "ref-sp-dev-git-commits",
         "ref-sp-dev-github-actions-ci",
         "ref-sp-dev-github-dependabot",
+        "ref-sp-dev-package-management",
         "ref-sp-dev-projects-architecture",
+        "ref-sp-dev-semantic-versioning",
         "ref-sp-js-javascript",
         "ref-sp-js-next",
         "ref-sp-js-next-template",
@@ -30,7 +32,8 @@
         "tool-sp-maintain-agents-instructions",
         "tool-sp-maintain-skills",
         "tool-sp-make-skill-shareable",
-        "tool-sp-run-adversarial-review"
+        "tool-sp-run-adversarial-review",
+        "tool-sp-setup-agent-repo"
       ]
     }
   ]
