@@ -14,9 +14,9 @@ Use this checklist when transplanting this repo's skills and AI-policy tooling i
 
 ## Skills
 
-- Did you copy shared `ref-skills-authoring` before or alongside other skills so the target repo has a standard for skill quality?
+- Did you copy shared `ref-sp-agents-skills-authoring` before or alongside other skills so the target repo has a standard for skill quality?
 - Did you copy only the generic skills that actually match the target repo's stack and domains?
-- Did you avoid copying `ref-swiftpost-*` skills unchanged into the target repo?
+- Did you avoid copying `ref-spst-*` skills unchanged into the target repo?
 - If the target repo has analogous packages or layers, did you create its own repo-specific skills instead?
 - Did you update commands, package names, frameworks, file paths, and examples to match the target repo?
 - Did you update the target repo's top-level instructions so the copied skills are discoverable?
@@ -29,7 +29,7 @@ Use this checklist when transplanting this repo's skills and AI-policy tooling i
 - Did you copy `.ai-policy.json` as the source of truth?
 - Did you copy `scripts/sync-ai-policy.mts` or an adapted equivalent?
 - Did you add package scripts such as `sync:ai-policy` and `sync:ai-policy:import-vscode`?
-- AI guardrail behavior belongs in shared `ref-agents-security` plus the top-level restricted-file policy summary.
+- AI guardrail behavior belongs in shared `ref-sp-agents-security` plus the top-level restricted-file policy summary.
 - If the target uses root-level local agent workspaces, did you add `.playground/` and `.tasks/` to both Git ignore rules and the AI exclusion policy?
 - Did you wire `prepare` or another bootstrap path so the generated policy files stay in sync?
 - Did you regenerate `.aiexclude`, `.claude/settings.json`, and `.vscode/settings.json` instead of treating them as hand-edited source files?

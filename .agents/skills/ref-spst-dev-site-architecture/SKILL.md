@@ -1,9 +1,12 @@
 ---
-name: ref-swiftpost-site-architecture
+name: ref-spst-dev-site-architecture
 description: "SwiftPost Site Template architecture, monorepo layout, package boundaries, import rules, and feature placement. Use when: designing features, structuring components, understanding where code goes, or configuring template-specific tooling."
 metadata:
-    shareable-skills.visibility: "repo-local"
-    shareable-skills.reason: "This skill documents this template's local monorepo architecture and package boundaries."
+  shareable-skills.owner-prefix: "spst"
+  shareable-skills.owner: "swiftpostlabs/swiftpost-site-template"
+  shareable-skills.domain: "dev"
+  shareable-skills.visibility: "repo-local"
+  shareable-skills.reason: "This skill documents this template's local monorepo architecture and package boundaries."
 ---
 
 # Architecture
@@ -12,10 +15,10 @@ metadata:
 
 Define the high-level architectural rules for the repo: how code is organized, how components are composed, how client/server boundaries work, how features stay isolated, and where files go. Favor structures that keep the codebase simple to navigate and maintain over abstractions that add indirection without clear payoff.
 
-For the SwiftPost Elysium UI library reference (components, props, imports, styling helpers), see the **ref-swiftpost-elysium** skill.
-For SwiftPost-specific styling guidance, see the **ref-swiftpost-styling** skill.
-For TypeScript/React coding patterns, see the **ref-swiftpost-code-conventions** skill.
-For Next.js-specific constraints and page patterns, see the **ref-swiftpost-next** skill.
+For the SwiftPost Elysium UI library reference (components, props, imports, styling helpers), see the **ref-spst-js-elysium** skill.
+For SwiftPost-specific styling guidance, see the **ref-spst-js-styling** skill.
+For TypeScript/React coding patterns, see the **ref-spst-dev-code-conventions** skill.
+For Next.js-specific constraints and page patterns, see the **ref-spst-js-next** skill.
 
 ## When to use this skill
 
@@ -132,7 +135,7 @@ features/<feature-name>/
 
 ## Reusable Component Architecture
 
-Reusable components that are meant to be flexible and overridable must use the Slots & SlotProps pattern. See the **ref-swiftpost-styling** skill for the local styling pattern and **ref-swiftpost-elysium** for the concrete package implementation used here.
+Reusable components that are meant to be flexible and overridable must use the Slots & SlotProps pattern. See the **ref-spst-js-styling** skill for the local styling pattern and **ref-spst-js-elysium** for the concrete package implementation used here.
 
 Key rules:
 * Define `SlotProps` for internal elements, `Props` with `slots?`, `slotProps`, and `sx?`.

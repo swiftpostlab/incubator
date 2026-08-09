@@ -1,7 +1,10 @@
 ---
-name: ref-swiftpost-code-conventions
+name: ref-spst-dev-code-conventions
 description: "SwiftPost Site Template TypeScript and React code quality standards. Use when: creating components, writing hooks, reviewing TypeScript code, or applying template-specific coding patterns."
 metadata:
+  shareable-skills.owner-prefix: "spst"
+  shareable-skills.owner: "swiftpostlabs/swiftpost-site-template"
+  shareable-skills.domain: "dev"
   shareable-skills.visibility: "repo-local"
   shareable-skills.reason: "This skill contains SwiftPost Site Template-specific TypeScript and React conventions."
 ---

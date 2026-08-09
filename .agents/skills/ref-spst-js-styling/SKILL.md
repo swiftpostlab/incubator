@@ -1,9 +1,12 @@
 ---
-name: ref-swiftpost-styling
+name: ref-spst-js-styling
 description: "SwiftPost Site Template styling guidance for Elysium/MUI components, sx merging, Slots and SlotProps APIs, responsive layout, and theme-token use. Use when: building UI in packages/main or packages/elysium, creating reusable styled components, shaping slot APIs, or reviewing visual/layout styling."
 metadata:
+  shareable-skills.owner-prefix: "spst"
+  shareable-skills.owner: "swiftpostlabs/swiftpost-site-template"
+  shareable-skills.domain: "js"
   shareable-skills.visibility: "repo-local"
-  shareable-skills.requires: "ref-swiftpost-elysium"
+  shareable-skills.requires: "ref-spst-js-elysium"
   shareable-skills.reason: "This skill depends on this template's @swiftpost/elysium package, theme structure, and local component conventions."
 ---
 
@@ -23,9 +26,9 @@ Define how styling should be authored in the SwiftPost Site Template so UI remai
 
 ## Related Skills
 
-- Load `.agents/skills/ref-swiftpost-elysium/SKILL.md` when you need exact component imports, wrapper names, theme exports, or Elysium helper APIs.
-- Load `.agents/skills/ref-swiftpost-site-architecture/SKILL.md` when the styling question also affects package boundaries, route structure, feature placement, or reusable component ownership.
-- Load `.agents/skills/ref-swiftpost-code-conventions/SKILL.md` when the styling change also needs TypeScript, React, hook, or component-quality guidance.
+- Load `.agents/skills/ref-spst-js-elysium/SKILL.md` when you need exact component imports, wrapper names, theme exports, or Elysium helper APIs.
+- Load `.agents/skills/ref-spst-dev-site-architecture/SKILL.md` when the styling question also affects package boundaries, route structure, feature placement, or reusable component ownership.
+- Load `.agents/skills/ref-spst-dev-code-conventions/SKILL.md` when the styling change also needs TypeScript, React, hook, or component-quality guidance.
 
 ## Inspect First
 

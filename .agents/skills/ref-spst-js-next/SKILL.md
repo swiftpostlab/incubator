@@ -1,7 +1,10 @@
 ---
-name: ref-swiftpost-next
+name: ref-spst-js-next
 description: "SwiftPost Site Template Next.js static-export conventions and constraints. Use when: creating pages, working with routing, managing client/server boundaries, or configuring Next.js in this template."
 metadata:
+  shareable-skills.owner-prefix: "spst"
+  shareable-skills.owner: "swiftpostlabs/swiftpost-site-template"
+  shareable-skills.domain: "js"
   shareable-skills.visibility: "repo-local"
   shareable-skills.reason: "This skill contains Next.js guidance specific to this template's static-export setup."
 ---
