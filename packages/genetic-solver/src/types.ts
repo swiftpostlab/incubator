@@ -52,6 +52,16 @@ export interface Encoding<TCandidate> {
   mutate(candidate: TCandidate, rng: Rng): TCandidate;
   /** Combine two parents into a new candidate. Must not modify the inputs. */
   crossover(first: TCandidate, second: TCandidate, rng: Rng): TCandidate;
+  /**
+   * Return a small variation of the candidate, used by local search when
+   * `localSearchSteps` is set. Must not modify the input. Defaults to `mutate`.
+   *
+   * This is where domain knowledge pays. `mutate` moves a random position, so a
+   * generic hill climb spends most of its steps touching parts of the candidate
+   * that were already fine. A `neighbour` that targets what is actually broken
+   * turns local search from a lottery into a repair.
+   */
+  neighbour?(candidate: TCandidate, rng: Rng): TCandidate;
 }
 
 /** A problem is an encoding plus the rules a solution is judged against. */
@@ -144,4 +154,14 @@ export interface SolverOptions {
    * Default 100.
    */
   readonly stallGenerations?: number;
+  /**
+   * Hill-climbing steps applied to each new candidate. Integer >= 0, where 0
+   * disables local search. Default 0.
+   *
+   * Plain crossover and mutation are good at finding the neighbourhood of a
+   * solution and bad at closing the last few violations, which usually need two
+   * coordinated changes at once. Local search covers exactly that endgame, at a
+   * cost of up to this many extra evaluations per candidate.
+   */
+  readonly localSearchSteps?: number;
 }

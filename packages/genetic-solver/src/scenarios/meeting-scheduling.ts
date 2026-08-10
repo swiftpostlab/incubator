@@ -14,7 +14,7 @@
 import { hardConstraint, softConstraint } from '../constraints.ts';
 import { createAssignmentEncoding } from '../encodings.ts';
 import type { Assignment } from '../encodings.ts';
-import type { Constraint, Problem } from '../types.ts';
+import type { Constraint, Encoding, Problem, Rng } from '../types.ts';
 
 export interface Slot {
   readonly id: string;
@@ -142,10 +142,81 @@ export const createMeetingProblem = (
     (person) => new Set(person.availableSlotIds),
   );
 
-  const encoding = createAssignmentEncoding({
+  const baseEncoding = createAssignmentEncoding({
     domainSizes: people.map(() => slots.length),
     allowedValues,
   });
+
+  /**
+   * Conflict-directed neighbour: move somebody who is actually double-booked.
+   *
+   * A random mutation picks one position out of `people.length`, so on a large
+   * roster with one clash left it touches the guilty pair roughly never — which
+   * is exactly how the search used to stall one booking short of a valid
+   * schedule. Picking from the contested slots instead makes every local-search
+   * step an attempt at the thing that is actually wrong.
+   *
+   * The move is a **relocation**: send the contested person to a slot they can
+   * attend that nobody currently holds. It stays inside their allowed values, so
+   * the encoding's guarantee that availability can never be violated survives
+   * local search.
+   *
+   * Relocation is the only move here, deliberately. A swap — trading slots with
+   * the holder of another slot — was tried and removed: it is clash-neutral. If
+   * `from` holds `{mover, other}` and `target` holds `{partner}`, swapping gives
+   * `from = {other, partner}` and `target = {mover}`, which is still one clash.
+   * Measured on tight instances it changed nothing.
+   *
+   * What those cases actually need is an augmenting path — relocate A onto B's
+   * slot, B onto C's, until the chain reaches a free slot — and the chain has no
+   * bounded length, so no fixed neighbourhood contains it. That is bipartite
+   * matching, not local search. This step handles the common case where a free
+   * slot is simply within reach; a schedule tight enough to need the chain wants
+   * an exact algorithm instead.
+   */
+  const repairNeighbour = (assignment: Assignment, rng: Rng): Assignment => {
+    const occupants = new Map<number, number[]>();
+
+    assignment.forEach((slotIndex, personIndex) => {
+      const existing = occupants.get(slotIndex);
+      if (existing) {
+        existing.push(personIndex);
+      } else {
+        occupants.set(slotIndex, [personIndex]);
+      }
+    });
+
+    const contested = [...occupants.values()].filter(
+      (group) => group.length > 1,
+    );
+
+    // Nothing double-booked: fall back to an ordinary mutation so local search
+    // can still improve soft preferences rather than idling.
+    if (contested.length === 0) {
+      return baseEncoding.mutate(assignment, rng);
+    }
+
+    const personIndex = rng.pick(rng.pick(contested));
+    const allowed = allowedValues[personIndex];
+    const free = allowed.filter((slotIndex) => !occupants.has(slotIndex));
+
+    // No reachable free slot: this is the augmenting-path case the step cannot
+    // solve. Mutate instead of standing still, and leave it to the caller to
+    // reach for the exact solver.
+    if (free.length === 0) {
+      return baseEncoding.mutate(assignment, rng);
+    }
+
+    const moved = [...assignment];
+    moved[personIndex] = rng.pick(free);
+
+    return moved;
+  };
+
+  const encoding: Encoding<Assignment> = {
+    ...baseEncoding,
+    neighbour: repairNeighbour,
+  };
 
   const constraints: Constraint<Assignment>[] = [
     hardConstraint('availability', (assignment) => {

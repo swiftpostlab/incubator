@@ -159,6 +159,125 @@ describe('solve', () => {
   });
 });
 
+describe('local search', () => {
+  test('is off by default, so it costs nothing unasked', () => {
+    const populationSize = 20;
+    const result = solve(identityProblem(25), {
+      seed: 8,
+      populationSize,
+      elitismCount: 2,
+      maxGenerations: 4,
+      stallGenerations: 1000,
+    });
+
+    const expected = populationSize + result.generations * (populationSize - 2);
+    assert.equal(result.evaluations, expected);
+  });
+
+  test('every hill-climbing step is counted as an evaluation', () => {
+    // Local search is not free, and hiding its cost would make `evaluations`
+    // useless for comparing a refined run against a plain one.
+    const populationSize = 10;
+    const localSearchSteps = 3;
+    const result = solve(identityProblem(25), {
+      seed: 8,
+      populationSize,
+      elitismCount: 2,
+      maxGenerations: 4,
+      stallGenerations: 1000,
+      localSearchSteps,
+    });
+
+    const perCandidate = 1 + localSearchSteps;
+    const expected =
+      populationSize * perCandidate +
+      result.generations * (populationSize - 2) * perCandidate;
+
+    assert.equal(result.evaluations, expected);
+  });
+
+  test('falls back to mutate when the encoding defines no neighbour', () => {
+    const encoding = createAssignmentEncoding({
+      domainSizes: Array.from({ length: 8 }, () => 8),
+    });
+    assert.ok(
+      !Object.hasOwn(encoding, 'neighbour'),
+      'precondition: the plain assignment encoding defines no neighbour',
+    );
+
+    const refined = solve(
+      { encoding, constraints: identityProblem(8).constraints },
+      { seed: 4, populationSize: 30, maxGenerations: 40, localSearchSteps: 6 },
+    );
+
+    assert.ok(refined.best.penalty >= 0);
+    assert.ok(
+      refined.evaluations > 30,
+      'local search should have run despite no custom neighbour',
+    );
+  });
+
+  test('uses the encoding neighbour when one is defined', () => {
+    let neighbourCalls = 0;
+    const base = createAssignmentEncoding({
+      domainSizes: Array.from({ length: 6 }, () => 6),
+    });
+    const encoding = {
+      ...base,
+      neighbour: (
+        candidate: Assignment,
+        rng: Parameters<typeof base.mutate>[1],
+      ) => {
+        neighbourCalls += 1;
+        return base.mutate(candidate, rng);
+      },
+    };
+
+    solve(
+      { encoding, constraints: identityProblem(6).constraints },
+      { seed: 4, populationSize: 10, maxGenerations: 3, localSearchSteps: 2 },
+    );
+
+    assert.ok(neighbourCalls > 0, 'the custom neighbour should have been used');
+  });
+
+  test('never returns a candidate worse than the one it started from', () => {
+    // First-improvement climbing accepts only strict improvements, so a run
+    // with local search can never score worse than its own unrefined start.
+    const encoding = createAssignmentEncoding({
+      domainSizes: Array.from({ length: 10 }, () => 10),
+    });
+    const problem = {
+      encoding,
+      constraints: identityProblem(10).constraints,
+    };
+
+    const plain = solve(problem, {
+      seed: 6,
+      populationSize: 30,
+      maxGenerations: 20,
+    });
+    const refined = solve(problem, {
+      seed: 6,
+      populationSize: 30,
+      maxGenerations: 20,
+      localSearchSteps: 10,
+    });
+
+    assert.ok(
+      refined.best.penalty <= plain.best.penalty,
+      `refined ${String(refined.best.penalty)} should not be worse than plain ${String(plain.best.penalty)}`,
+    );
+
+    for (let index = 1; index < refined.history.length; index += 1) {
+      assert.ok(
+        refined.history[index] <= refined.history[index - 1],
+        'the best penalty must still never regress',
+      );
+    }
+  });
+});
+
 describe('solve option validation', () => {
   const problem = identityProblem(3);
 
@@ -291,6 +410,16 @@ describe('solve option validation', () => {
     // limit of 0 would end the run after one generation even when it improved.
     rejects('stallGenerations', [0, -1, 2.5, Number.NaN]);
     accepts('stallGenerations', [1, 100]);
+  });
+
+  test('localSearchSteps must be an integer >= 0', () => {
+    rejects('localSearchSteps', [
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]);
+    accepts('localSearchSteps', [0, 1, 25]);
   });
 
   test('seed must be an integer', () => {

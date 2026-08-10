@@ -19,6 +19,7 @@ interface ResolvedOptions {
   readonly hardPenaltyWeight: number;
   readonly targetPenalty: number;
   readonly stallGenerations: number;
+  readonly localSearchSteps: number;
 }
 
 const assertInteger = (name: string, value: number, minimum: number): void => {
@@ -112,7 +113,11 @@ const resolveOptions = (options: SolverOptions): ResolvedOptions => {
   const stallGenerations = options.stallGenerations ?? 100;
   assertInteger('stallGenerations', stallGenerations, 1);
 
+  const localSearchSteps = options.localSearchSteps ?? 0;
+  assertInteger('localSearchSteps', localSearchSteps, 0);
+
   return {
+    localSearchSteps,
     populationSize,
     elitismCount,
     tournamentSize,
@@ -185,8 +190,37 @@ export const solve = <TCandidate>(
     );
   };
 
+  // Called as a method on `encoding`, not captured into a local, so an encoding
+  // implemented as a class keeps its `this`.
+  const neighbour = (candidate: TCandidate, source: Rng): TCandidate =>
+    encoding.neighbour === undefined ?
+      encoding.mutate(candidate, source)
+    : encoding.neighbour(candidate, source);
+
+  /**
+   * First-improvement hill climbing: draw a neighbour, keep it only if it
+   * scores better, repeat.
+   *
+   * Strictly better, not "no worse": accepting equal moves lets the climb drift
+   * sideways across a plateau and spend its whole budget without progress. The
+   * budget is per candidate and every step is counted in `evaluations`, so the
+   * cost of local search is visible in the result rather than hidden.
+   */
+  const refine = (candidate: TCandidate): Evaluation<TCandidate> => {
+    let current = evaluate(candidate);
+
+    for (let step = 0; step < resolved.localSearchSteps; step += 1) {
+      const challenger = evaluate(neighbour(current.candidate, rng));
+      if (challenger.penalty < current.penalty) {
+        current = challenger;
+      }
+    }
+
+    return current;
+  };
+
   let population = Array.from({ length: resolved.populationSize }, () =>
-    evaluate(encoding.create(rng)),
+    refine(encoding.create(rng)),
   ).sort(byPenaltyAscending);
 
   let best = population[0];
@@ -228,7 +262,7 @@ export const solve = <TCandidate>(
         child = encoding.mutate(child, rng);
       }
 
-      nextPopulation.push(evaluate(child));
+      nextPopulation.push(refine(child));
     }
 
     population = nextPopulation.sort(byPenaltyAscending);

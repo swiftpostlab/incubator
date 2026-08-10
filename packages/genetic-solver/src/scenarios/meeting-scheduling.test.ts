@@ -373,6 +373,91 @@ describe('meeting scheduling', () => {
     );
   });
 
+  test('local search closes conflicts that plain crossover and mutation cannot', () => {
+    // A 60-person roster over 80 slots, proven feasible by construction below.
+    // Without local search the search plateaus one booking short and reports
+    // 'stalled'; with it, the same seed reaches a valid schedule. This is the
+    // regression that justifies the repair step existing at all.
+    const bigger = createDailySlots(
+      Array.from({ length: 20 }, (_unused, day) => `d${String(day)}`),
+      4,
+    );
+    const window = 10;
+    const roster: Person[] = Array.from({ length: 60 }, (_unused, index) => {
+      const start = index % (bigger.length - window + 1);
+      return {
+        id: `p${String(index)}`,
+        availableSlotIds: bigger
+          .filter((slot) => slot.index >= start && slot.index < start + window)
+          .map((slot) => slot.id),
+      };
+    });
+    const spec: MeetingProblemSpec = { slots: bigger, people: roster };
+    const options = {
+      seed: 3,
+      populationSize: 60,
+      maxGenerations: 300,
+      stallGenerations: 60,
+    };
+
+    const withoutRepair = solve(createMeetingProblem(spec), {
+      ...options,
+      localSearchSteps: 0,
+    });
+    const withRepair = solve(createMeetingProblem(spec), {
+      ...options,
+      localSearchSteps: 8,
+    });
+
+    assert.equal(
+      withoutRepair.best.feasible,
+      false,
+      'precondition: this instance defeats the plain search',
+    );
+    assert.equal(withRepair.best.feasible, true);
+    assertScheduleIsValid(spec, withRepair.best.candidate);
+  });
+
+  test('repair never books somebody into a slot they cannot attend', () => {
+    // The relocation move draws only from the person's allowed values, so the
+    // encoding's availability guarantee has to survive local search too.
+    const spec: MeetingProblemSpec = { slots: bigSlots, people: bigRoster };
+    const problem = createMeetingProblem(spec);
+    const availability = problem.constraints.find(
+      (entry) => entry.id === 'availability',
+    );
+    assert.ok(availability);
+
+    let worst = 0;
+    let scored = 0;
+    const observed = {
+      ...problem,
+      constraints: problem.constraints.map((constraint) =>
+        constraint.id !== 'availability' ?
+          constraint
+        : {
+            ...constraint,
+            evaluate: (candidate: Assignment) => {
+              const violation = constraint.evaluate(candidate);
+              scored += 1;
+              worst = Math.max(worst, violation);
+              return violation;
+            },
+          },
+      ),
+    };
+
+    solve(observed, {
+      seed: 11,
+      populationSize: 40,
+      maxGenerations: 30,
+      localSearchSteps: 6,
+    });
+
+    assert.ok(scored > 100, `expected many evaluations, saw ${String(scored)}`);
+    assert.equal(worst, 0, 'local search must stay inside the allowed slots');
+  });
+
   test('scales to a larger roster', () => {
     const spec: MeetingProblemSpec = { slots: bigSlots, people: bigRoster };
     const result = solve(createMeetingProblem(spec), {
