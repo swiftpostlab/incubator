@@ -20,6 +20,8 @@
     "lint:fix": "turbo lint:fix --ui stream",
     "typecheck": "yarn tsc --project scripts/tsconfig.json --noEmit && turbo typecheck",
     "typecheck:ci": "yarn tsc --project scripts/tsconfig.json --noEmit && turbo typecheck --ui stream",
+    "test": "turbo test",
+    "test:ci": "turbo test --ui stream",
     "sync:skills": "agentic-tools skills sync",
     "upgrade:agentic-tools": "yarn upgrade agentic-tools",
     "sync:ai-policy": "node --experimental-strip-types scripts/sync-ai-policy.mts",

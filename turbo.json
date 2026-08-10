@@ -9,6 +9,9 @@
     "lint:fix": {},
     "typecheck": {
       "cache": false
+    },
+    "test": {
+      "cache": false
     }
   }
 }
