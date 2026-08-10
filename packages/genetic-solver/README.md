@@ -1,26 +1,42 @@
 # @swiftpost/genetic-solver
 
-A standalone genetic-algorithm constraint solver in TypeScript. Describe a problem as an encoding
-plus a set of constraints, and the solver searches for an assignment that satisfies them.
+Constraint solving in TypeScript, with two solvers that answer different questions. Describe a
+problem as an encoding plus a set of constraints and `solve` searches for an assignment that
+satisfies them; when the problem is "give each item its own distinct slot", `maximumBipartiteMatching`
+answers it exactly instead of searching.
 
 No runtime dependencies. No framework coupling — it does not import React, Next, or MUI, and it runs
 under plain Node.
 
-## When this is the right tool
+## Which solver you want
 
-Genetic search suits problems where the space is too large to enumerate, a good-enough answer beats
-no answer, and you can *score how wrong* a candidate is rather than only whether it is valid.
+**Read this before reaching for the genetic search.** A heuristic is the wrong tool for a problem
+that has an exact algorithm, and this library ships both so the choice is available.
 
-It is **not** an exact solver. A run that ends without a feasible result means none was found, not
-that none exists. If you need a proof of optimality or infeasibility, use an exact method.
+| Your problem | Use |
+|---|---|
+| Each item needs its own distinct slot from a per-item allowed set, nothing else | `maximumBipartiteMatching` / `solveMeetingExactly` |
+| The same, plus preferences to trade off | Exact first, then `solve` seeded with `initialCandidates` |
+| Anything else — arbitrary constraints, no known exact algorithm | `solve` |
+
+The difference is not academic. On a 1000-person schedule the genetic search ran for 56 seconds and
+finished two bookings short; matching solved the same instance exactly in 5.5ms. Worse, that instance
+*was* solvable — the search simply could not close the last conflicts, because doing so needs a chain
+of relocations of unbounded length that no local move can reach.
+
+Genetic search earns its place when the space is too large to enumerate, a good-enough answer beats
+no answer, and you can *score how wrong* a candidate is rather than only whether it is valid. It is
+**not** exact: a run ending without a feasible result means none was found, not that none exists.
+Matching, by contrast, returns a proof either way.
 
 ## Usage
 
+Exact, when the rules are only "everyone gets their own slot":
+
 ```ts
-import { createDailySlots, createMeetingProblem, describeSchedule, solve } from '@swiftpost/genetic-solver';
+import { createDailySlots, describeSchedule, solveMeetingExactly } from '@swiftpost/genetic-solver';
 
 const slots = createDailySlots(['mon', 'tue', 'wed'], 3);
-
 const spec = {
   slots,
   people: [
@@ -28,16 +44,39 @@ const spec = {
     { id: 'bo', availableSlotIds: ['mon#1', 'tue#0'] },
     { id: 'cai', availableSlotIds: ['tue#0', 'wed#2'] },
   ],
-  preferences: { compactDaysWeight: 1 },
 };
 
-const result = solve(createMeetingProblem(spec), { seed: 1 });
+const exact = solveMeetingExactly(spec);
 
-if (result.best.feasible) {
-  for (const { person, slot } of describeSchedule(spec, result.best.candidate).meetings) {
+if (exact.assignment) {
+  for (const { person, slot } of describeSchedule(spec, exact.assignment).meetings) {
     console.log(`${person.id} -> ${slot.id}`);
   }
+} else {
+  // Not "I gave up" — a proof, naming the group that cannot fit.
+  const { people, slots: contested } = exact.bottleneck!;
+  console.log(
+    `${people.map((p) => p.id).join(', ')} can only attend ` +
+      `${contested.map((s) => s.id).join(', ')} — ${people.length} people, ${contested.length} slots`,
+  );
 }
+```
+
+Exact, then genetic for the preferences — the combination worth having both for:
+
+```ts
+import { createMeetingProblem, solve, solveMeetingExactly } from '@swiftpost/genetic-solver';
+
+const withPreferences = { ...spec, preferences: { compactDaysWeight: 1 } };
+const feasible = solveMeetingExactly(withPreferences);
+
+const result = solve(createMeetingProblem(withPreferences), {
+  seed: 1,
+  localSearchSteps: 8,
+  // Start from a schedule already known to work, so the whole budget goes on
+  // preferences rather than on rediscovering feasibility.
+  initialCandidates: feasible.assignment ? [feasible.assignment] : [],
+});
 ```
 
 ## Core concepts
@@ -45,9 +84,10 @@ if (result.best.feasible) {
 | Piece | Role |
 |-------|------|
 | `Constraint` | Scores how badly a candidate breaks one rule. `0` means satisfied; larger is worse. |
-| `Encoding` | Knows the candidate representation: how to create, mutate, and combine one. |
+| `Encoding` | Knows the candidate representation: how to create, mutate, combine, and optionally repair one. |
 | `Problem` | An encoding plus its constraints. |
 | `solve` | Runs the search and returns the best candidate with a breakdown. |
+| `maximumBipartiteMatching` | Solves distinct-assignment exactly, with a proof when it cannot. |
 
 ### Violation magnitudes, not booleans
 
@@ -85,6 +125,8 @@ a larger population, not a luckier seed.
 | `hardPenaltyWeight` | 1000 | finite > 0 | How much a hard violation outweighs soft ones. |
 | `targetPenalty` | 0 | finite >= 0 | Stop once the best penalty reaches this. |
 | `stallGenerations` | 100 | integer >= 1 | Stop after this many generations with no improvement. |
+| `localSearchSteps` | 0 | integer >= 0 | Hill-climbing steps per candidate. `0` disables local search. |
+| `initialCandidates` | none | at most `populationSize` | Seed the initial population with known-good candidates. |
 
 Every option is range-checked before the search starts; an out-of-range value throws a `RangeError`
 naming the option. The strictness is deliberate — a bad option does not crash the solver, it
@@ -100,6 +142,62 @@ without throwing — making every comparison in selection false and the search w
 
 `solve` returns `stopReason` — `target-reached`, `stalled`, or `max-generations` — so you can tell a
 solved problem from an exhausted budget.
+
+## Local search
+
+Crossover and mutation are good at finding the neighbourhood of a solution and bad at the endgame.
+Closing the last violation usually takes two coordinated changes, and neither half improves anything
+on its own, so selection rejects both. The measured symptom is a search that gets to 149 bookings out
+of 150 and reports `stalled` — on an instance that is provably solvable.
+
+Setting `localSearchSteps` gives each new candidate that many first-improvement hill-climbing steps.
+It accepts strictly better neighbours only; accepting equal ones lets the climb drift across a plateau
+and burn its budget. Every step counts toward `evaluations`, so the cost is visible.
+
+| 200 population, seed 1 | `localSearchSteps: 0` | `localSearchSteps: 10` |
+|---|---|---|
+| 150 people / 200 slots | 1 clash, `stalled`, 946ms | solved, 465ms |
+| 300 people / 400 slots | 3 clashes, `stalled`, 3158ms | solved, 2604ms |
+
+Where the win comes from is the *neighbour*, not the climbing. `Encoding.neighbour` defaults to
+`mutate`, which picks a random position — on a 150-person roster with one clash left, that touches the
+guilty pair essentially never. The meeting scenario supplies a conflict-directed neighbour that only
+ever moves somebody actually double-booked. If you write your own encoding and want local search to
+be worth its cost, define `neighbour` to target what your constraints actually punish.
+
+Local search has a hard limit, and it is worth knowing before relying on it: it cannot help when no
+free slot is within reach, because the fix is then a chain of relocations of unbounded length. Tight
+instances (as many people as slots) and very large ones still stall. That is what the exact solver is
+for.
+
+## The exact solver
+
+`maximumBipartiteMatching` solves "give each left item a distinct right item from its own allowed set"
+outright. `solveMeetingExactly` wraps it for the scheduling scenario.
+
+It returns a proof in both directions. A returned assignment is guaranteed valid, not merely the best
+found. A failure names the group that cannot fit — a Hall's-theorem witness, `these six people can
+only attend these five slots` — which a caller can act on, unlike "no solution found".
+
+| Instance | Genetic search | Exact |
+|---|---|---|
+| 100 people / 100 slots | 5 clashes, 4.9s | solved, 3.3ms |
+| 200 people / 200 slots | 12 clashes, 13s | solved, 3.2ms |
+| 600 people / 800 slots | 2 clashes, 35s | solved, 4.8ms |
+| 1000 people / 1200 slots | 2 clashes, 56s | solved, 5.5ms |
+
+The genetic column is `populationSize: 100, localSearchSteps: 10, maxGenerations: 2000,
+stallGenerations: 300` — that is, the search with local search already switched on, given a generous
+budget. Every one of those instances is feasible, verified by matching, so that column is the search
+failing rather than the problem being hard.
+
+What matching *cannot* do is trade off preferences — it optimises the number of placed items and
+nothing else, and ignores `spec.preferences` entirely. That is the division of labour: matching for
+feasibility, `solve` seeded via `initialCandidates` for everything you would merely prefer.
+
+The augmenting-path walk is iterative rather than recursive, because a path can be as long as the left
+side and a recursive version would risk the stack on ordinary input. A test exercises a 5000-link
+chain.
 
 ## The scheduling scenario
 
@@ -131,6 +229,10 @@ Impossible inputs — someone with no availability, more people than slots, unkn
 ids — throw at construction rather than being left to the search, so you get a clear error instead of
 an ambiguous "no solution found".
 
+Note what this adds up to: with only the two hard constraints, the scenario reduces to bipartite
+matching, and `solveMeetingExactly` is strictly the better tool. `createMeetingProblem` earns its
+place once `preferences` are set.
+
 ## Extending it
 
 Define your own problem by supplying an `Encoding` and constraints:
@@ -150,8 +252,13 @@ const result = solve(problem, { seed: 1 });
 ```
 
 `createAssignmentEncoding` covers any "pick one option per item" problem. For anything else, implement
-`Encoding` directly — `create`, `mutate`, and `crossover` must return new values and never modify
-their inputs.
+`Encoding` directly — `create`, `mutate`, `crossover`, and `neighbour` must return new values and
+never modify their inputs. That last rule is not cosmetic: elitism carries candidate references
+between generations, so an operator that edits in place silently corrupts the population.
+
+Before writing constraints, check whether your problem is really distinct assignment in disguise — one
+item per slot, drawn from per-item allowed sets. If it is, `maximumBipartiteMatching` will beat
+anything you can express as a penalty.
 
 ## Commands
 
