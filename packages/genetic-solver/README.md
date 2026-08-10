@@ -104,9 +104,16 @@ Constraints:
 - `earliness` (soft, opt-in) — prefer earlier slots, normalised so the weight means the same thing
   regardless of schedule length.
 
-People's available slots also seed the initial population, so the search starts inside the feasible
-region instead of having to discover it. The availability constraint still exists because crossover
-and mutation can move a person outside their allowed set.
+People's available slots become the encoding's allowed values, which confines the whole search to the
+availability-feasible region — not just the initial population. `create` and `mutate` only draw
+allowed values, and uniform crossover copies each position from a parent at that same position, so
+**no operator can produce an unavailable booking and `availability` always reads zero**.
+`no-double-booking` is the only hard constraint the search actually has to work at.
+
+`availability` is still declared rather than dropped, because it states the rule as data rather than
+burying it in the encoding, and it stays correct for a caller who reuses these constraints with their
+own unconfined encoding. Both properties are pinned by tests: one asserts the constraint never fires
+during a real solve, the other asserts it does fire once the encoding is not confined.
 
 Impossible inputs — someone with no availability, more people than slots, unknown slot ids, duplicate
 ids — throw at construction rather than being left to the search, so you get a clear error instead of

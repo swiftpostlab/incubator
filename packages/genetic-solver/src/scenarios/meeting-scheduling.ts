@@ -111,10 +111,20 @@ const validateSpec = (spec: MeetingProblemSpec): void => {
 /**
  * Build a solvable problem from a scheduling spec.
  *
- * Each person's available slots become their allowed values, so the initial
- * population already respects availability. The availability constraint is still
- * declared, because crossover and mutation can move a person outside their
- * allowed set and the penalty is what pulls them back.
+ * Each person's available slots become their allowed values, which confines the
+ * search to the availability-feasible region: `create` and `mutate` only ever
+ * draw allowed values, and uniform crossover copies each position from a parent
+ * at that same position. So with this encoding, **no operator can produce an
+ * unavailable booking, and the `availability` constraint always reads zero**.
+ * `no-double-booking` is the only hard constraint the search actually has to
+ * work at.
+ *
+ * `availability` is still declared rather than dropped, for two reasons: it
+ * documents the rule as data instead of burying it in the encoding, and it stays
+ * correct for a caller who reuses these constraints with their own, unconfined
+ * encoding. Both properties are pinned by tests — one asserts the constraint
+ * never fires during a real solve, the other asserts it does fire when the
+ * encoding is not confined.
  */
 export const createMeetingProblem = (
   spec: MeetingProblemSpec,

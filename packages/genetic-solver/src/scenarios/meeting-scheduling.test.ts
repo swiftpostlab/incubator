@@ -3,6 +3,9 @@ import { describe, test } from 'node:test';
 
 import { solve } from '../solver.ts';
 import { violatedConstraints } from '../constraints.ts';
+import { createAssignmentEncoding } from '../encodings.ts';
+import type { Assignment } from '../encodings.ts';
+import { createRng } from '../random.ts';
 import {
   createDailySlots,
   createMeetingProblem,
@@ -12,6 +15,23 @@ import type { MeetingProblemSpec, Person } from './meeting-scheduling.ts';
 
 const days = ['mon', 'tue', 'wed'];
 const slots = createDailySlots(days, 3);
+
+/**
+ * A heavily contended week: 18 people over 20 slots, each able to attend only a
+ * narrow window of 4 consecutive slots, with the windows overlapping. Big enough
+ * that the solver has to actually search rather than get lucky on the first
+ * population.
+ */
+const bigSlots = createDailySlots(['mon', 'tue', 'wed', 'thu', 'fri'], 4);
+const bigRoster: Person[] = Array.from({ length: 18 }, (_unused, index) => {
+  const start = index % (bigSlots.length - 3);
+  return {
+    id: `p${String(index)}`,
+    availableSlotIds: bigSlots
+      .filter((slot) => slot.index >= start && slot.index < start + 4)
+      .map((slot) => slot.id),
+  };
+});
 const slotId = (day: string, index: number): string =>
   `${day}#${String(index)}`;
 
@@ -263,20 +283,98 @@ describe('meeting scheduling', () => {
     );
   });
 
-  test('scales to a larger roster', () => {
-    const bigSlots = createDailySlots(['mon', 'tue', 'wed', 'thu', 'fri'], 4);
-    const people: Person[] = Array.from({ length: 18 }, (_unused, index) => {
-      // Deterministic, uneven availability: each person can attend a narrow
-      // window of 4 consecutive slots, and the windows overlap heavily, so
-      // contention is real rather than incidental.
-      const start = index % (bigSlots.length - 3);
-      const available = bigSlots
-        .filter((slot) => slot.index >= start && slot.index < start + 4)
-        .map((slot) => slot.id);
-      return { id: `p${String(index)}`, availableSlotIds: available };
+  test('availability is structurally satisfied, never merely optimised away', () => {
+    // Availability is enforced by the encoding, not by the search: allowedValues
+    // confines `create` and `mutate`, and uniform crossover copies each position
+    // from a parent at the same position. So no operator can produce a candidate
+    // that breaks availability, and the constraint should read zero for every
+    // candidate the solver ever scores — including the intermediate ones.
+    // Heavily contended, so the search genuinely runs generations rather than
+    // stumbling onto a solution in the initial population.
+    const spec: MeetingProblemSpec = { slots: bigSlots, people: bigRoster };
+
+    const problem = createMeetingProblem(spec);
+    const availability = problem.constraints.find(
+      (entry) => entry.id === 'availability',
+    );
+    assert.ok(availability, 'the availability constraint should exist');
+
+    let scored = 0;
+    let worstAvailabilityViolation = 0;
+
+    const observed = {
+      ...problem,
+      constraints: problem.constraints.map((constraint) =>
+        constraint.id !== 'availability' ?
+          constraint
+        : {
+            ...constraint,
+            evaluate: (candidate: Assignment) => {
+              const violation = constraint.evaluate(candidate);
+              scored += 1;
+              worstAvailabilityViolation = Math.max(
+                worstAvailabilityViolation,
+                violation,
+              );
+              return violation;
+            },
+          },
+      ),
+    };
+
+    const result = solve(observed, {
+      seed: 8,
+      populationSize: 40,
+      maxGenerations: 30,
     });
 
-    const spec: MeetingProblemSpec = { slots: bigSlots, people };
+    assert.ok(scored > 100, `expected many evaluations, saw ${String(scored)}`);
+    assert.equal(
+      worstAvailabilityViolation,
+      0,
+      'no operator should ever produce an unavailable booking',
+    );
+    assert.equal(result.best.feasible, true);
+  });
+
+  test('availability does bite when the encoding is not confined', () => {
+    // The constraint is not dead weight: swap in an unconfined encoding — what a
+    // caller gets if they build the problem themselves — and it starts firing.
+    const spec: MeetingProblemSpec = {
+      slots,
+      people: [
+        { id: 'ana', availableSlotIds: [slotId('mon', 0)] },
+        { id: 'bo', availableSlotIds: [slotId('tue', 1)] },
+      ],
+    };
+
+    const problem = createMeetingProblem(spec);
+    const availability = problem.constraints.find(
+      (entry) => entry.id === 'availability',
+    );
+    assert.ok(availability);
+
+    const unconfined = createAssignmentEncoding({
+      domainSizes: [slots.length, slots.length],
+    });
+    const rng = createRng(9);
+    let sawViolation = false;
+
+    for (let draw = 0; draw < 200; draw += 1) {
+      if (availability.evaluate(unconfined.create(rng)) > 0) {
+        sawViolation = true;
+        break;
+      }
+    }
+
+    assert.ok(
+      sawViolation,
+      'an unconfined candidate should be able to break availability',
+    );
+  });
+
+  test('scales to a larger roster', () => {
+    const spec: MeetingProblemSpec = { slots: bigSlots, people: bigRoster };
     const result = solve(createMeetingProblem(spec), {
       seed: 7,
       populationSize: 200,
