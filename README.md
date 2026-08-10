@@ -1,11 +1,15 @@
-# @swiftpost/swiftpost-site-template
+# @swiftpost/incubator
 
-Batteries included website template.
+A place to try out small projects.
 
 ## Goals
 
-Goal, provide a simple and practical starting template for blogs, portfolios and small business, that is easy to adopt and adapt.
-It is in spirit similar to [beautyful-jekyll](https://github.com/Beautiful-Jekyll/Beautiful-Jekyll.github.io) but using React instead of Jekyll.
+Provide one deployed static site that hosts several small, independent experiments side by side, so
+a new idea costs a route folder rather than a new repository. Each subproject lives under
+`packages/main/src/app/<subproject>/` and is linked from the home page.
+
+This repo is downstream of [swiftpost-site-template](https://github.com/swiftpostlab/swiftpost-site-template),
+which supplies the baseline stack, tooling, and agent setup. Sync by rebasing onto it.
 
 ## Requirements and recommended
 
@@ -64,7 +68,7 @@ However, for the first setup, you my need to follow [these additional steps](htt
 ### Issues with subpath (broken assets)
 
 If your website is for a GitHub project, you may need to configure the base path in the `next.config.js` file.
-For example, for this project it is `basePath: '/swiftpost-next-static-template'`.
+For example, for this project it is `basePath: '/incubator'`.
 
 ---
 

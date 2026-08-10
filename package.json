@@ -1,11 +1,11 @@
 {
-  "name": "@swiftpost/next-static-template",
+  "name": "@swiftpost/incubator",
   "private": true,
   "type": "module",
   "version": "0.0.1",
-  "description": "Batteries included React template",
+  "description": "Incubator for small SwiftPost projects",
   "main": "index.js",
-  "repository": "git@github.com:swiftpostlab/swiftpost-next-static-template.git",
+  "repository": "git@github.com:swiftpostlab/incubator.git",
   "author": "SwiftPost <swiftpostlab@gmail.com>",
   "license": "MIT",
   "workspaces": [
