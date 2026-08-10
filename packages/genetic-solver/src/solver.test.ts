@@ -4,7 +4,7 @@ import { describe, test } from 'node:test';
 import { hardConstraint, softConstraint } from './constraints.ts';
 import { createAssignmentEncoding } from './encodings.ts';
 import { solve } from './solver.ts';
-import type { Assignment, Problem } from './index.ts';
+import type { Assignment, Problem, SolverOptions } from './index.ts';
 
 /** Every position must equal its own index — one exact optimum, easy to verify. */
 const identityProblem = (length: number): Problem<Assignment> => ({
@@ -144,17 +144,6 @@ describe('solve', () => {
     assert.equal(result.evaluations, expected);
   });
 
-  test('rejects invalid options', () => {
-    const problem = identityProblem(3);
-
-    assert.throws(() => solve(problem, { populationSize: 1 }), RangeError);
-    assert.throws(
-      () => solve(problem, { elitismCount: 10, populationSize: 10 }),
-      RangeError,
-    );
-    assert.throws(() => solve(problem, { tournamentSize: 0 }), RangeError);
-  });
-
   test('rejects a constraint returning a negative or non-finite violation', () => {
     const negative: Problem<Assignment> = {
       encoding: createAssignmentEncoding({ domainSizes: [2] }),
@@ -167,5 +156,165 @@ describe('solve', () => {
 
     assert.throws(() => solve(negative, { populationSize: 4 }), RangeError);
     assert.throws(() => solve(notFinite, { populationSize: 4 }), RangeError);
+  });
+});
+
+describe('solve option validation', () => {
+  const problem = identityProblem(3);
+
+  const withOption = (option: string, value: number): SolverOptions =>
+    // The whole point is to feed values the type system would reject, so the
+    // assertion is the test doing its job rather than a hole in the typing.
+    ({ maxGenerations: 1, elitismCount: 0, [option]: value }) as SolverOptions;
+
+  /** Every rejected value should throw a RangeError naming the option. */
+  const rejects = (option: string, values: readonly number[]): void => {
+    for (const value of values) {
+      assert.throws(
+        () => solve(problem, withOption(option, value)),
+        (error: unknown) =>
+          error instanceof RangeError && error.message.includes(option),
+        `${option}: ${String(value)} should be rejected, naming the option`,
+      );
+    }
+  };
+
+  /** Every accepted value should get through validation without throwing. */
+  const accepts = (option: string, values: readonly number[]): void => {
+    for (const value of values) {
+      assert.doesNotThrow(
+        () => solve(problem, withOption(option, value)),
+        `${option}: ${String(value)} should be accepted`,
+      );
+    }
+  };
+
+  test('populationSize must be an integer >= 2', () => {
+    rejects('populationSize', [
+      1,
+      0,
+      -5,
+      2.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]);
+    accepts('populationSize', [2, 3, 50]);
+  });
+
+  test('elitismCount must be an integer in [0, populationSize)', () => {
+    assert.throws(
+      () => solve(problem, { populationSize: 10, elitismCount: 10 }),
+      /elitismCount/,
+    );
+    assert.throws(
+      () => solve(problem, { populationSize: 10, elitismCount: -1 }),
+      /elitismCount/,
+    );
+    assert.throws(
+      () => solve(problem, { populationSize: 10, elitismCount: 1.5 }),
+      /elitismCount/,
+    );
+    assert.doesNotThrow(() =>
+      solve(problem, {
+        populationSize: 10,
+        elitismCount: 9,
+        maxGenerations: 1,
+      }),
+    );
+    assert.doesNotThrow(() =>
+      solve(problem, {
+        populationSize: 10,
+        elitismCount: 0,
+        maxGenerations: 1,
+      }),
+    );
+  });
+
+  test('tournamentSize must be an integer >= 1', () => {
+    rejects('tournamentSize', [0, -1, 2.5, Number.NaN]);
+    accepts('tournamentSize', [1, 3, 10]);
+  });
+
+  test('maxGenerations must be an integer >= 0', () => {
+    rejects('maxGenerations', [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]);
+    accepts('maxGenerations', [0, 1, 500]);
+  });
+
+  test('maxGenerations of 0 scores the initial population and stops', () => {
+    // The reason 0 is accepted rather than rejected: it is a coherent request,
+    // and it is what "no generations run" is supposed to mean. The problem is
+    // wide enough that 8 random draws cannot stumble onto the optimum, which
+    // would otherwise end the run as 'target-reached' instead.
+    const result = solve(identityProblem(12), {
+      maxGenerations: 0,
+      populationSize: 8,
+    });
+
+    assert.equal(result.generations, 0);
+    assert.equal(result.evaluations, 8);
+    assert.equal(result.stopReason, 'max-generations');
+    assert.equal(result.history.length, 1);
+  });
+
+  test('mutationProbability must be in [0, 1]', () => {
+    rejects('mutationProbability', [
+      -0.1,
+      1.1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]);
+    accepts('mutationProbability', [0, 0.5, 1]);
+  });
+
+  test('crossoverProbability must be in [0, 1]', () => {
+    rejects('crossoverProbability', [
+      -0.1,
+      1.1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]);
+    accepts('crossoverProbability', [0, 0.5, 1]);
+  });
+
+  test('hardPenaltyWeight must be a finite number > 0', () => {
+    rejects('hardPenaltyWeight', [0, -1, Number.NaN, Number.POSITIVE_INFINITY]);
+    accepts('hardPenaltyWeight', [0.5, 1, 1000, 1e9]);
+  });
+
+  test('targetPenalty must be a finite number >= 0', () => {
+    rejects('targetPenalty', [-1, Number.NaN, Number.POSITIVE_INFINITY]);
+    accepts('targetPenalty', [0, 0.5, 100]);
+  });
+
+  test('stallGenerations must be an integer >= 1', () => {
+    // 0 is rejected because the counter resets to 0 on improvement, so a stall
+    // limit of 0 would end the run after one generation even when it improved.
+    rejects('stallGenerations', [0, -1, 2.5, Number.NaN]);
+    accepts('stallGenerations', [1, 100]);
+  });
+
+  test('seed must be an integer', () => {
+    rejects('seed', [1.5, Number.NaN, Number.POSITIVE_INFINITY]);
+    accepts('seed', [0, 1, -7, 123456]);
+  });
+
+  test('a rejected option is refused before any evaluation runs', () => {
+    let evaluated = 0;
+    const counting: Problem<Assignment> = {
+      encoding: createAssignmentEncoding({ domainSizes: [2] }),
+      constraints: [
+        hardConstraint('counts', () => {
+          evaluated += 1;
+          return 1;
+        }),
+      ],
+    };
+
+    assert.throws(() => solve(counting, { stallGenerations: 0 }), RangeError);
+    assert.equal(
+      evaluated,
+      0,
+      'validation should happen before the search starts',
+    );
   });
 });

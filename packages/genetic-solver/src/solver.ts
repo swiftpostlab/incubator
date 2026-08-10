@@ -21,14 +21,51 @@ interface ResolvedOptions {
   readonly stallGenerations: number;
 }
 
-const resolveOptions = (options: SolverOptions): ResolvedOptions => {
-  const populationSize = options.populationSize ?? 100;
-
-  if (!Number.isInteger(populationSize) || populationSize < 2) {
+const assertInteger = (name: string, value: number, minimum: number): void => {
+  if (!Number.isInteger(value) || value < minimum) {
     throw new RangeError(
-      `populationSize must be an integer >= 2, received ${String(populationSize)}`,
+      `${name} must be an integer >= ${String(minimum)}, received ${String(value)}`,
     );
   }
+};
+
+const assertProbability = (name: string, value: number): void => {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new RangeError(
+      `${name} must be a number in [0, 1], received ${String(value)}`,
+    );
+  }
+};
+
+const assertFiniteAtLeast = (
+  name: string,
+  value: number,
+  minimum: number,
+): void => {
+  if (!Number.isFinite(value) || value < minimum) {
+    throw new RangeError(
+      `${name} must be a finite number >= ${String(minimum)}, received ${String(value)}`,
+    );
+  }
+};
+
+/**
+ * Every option is checked, not just the ones with obvious failure modes.
+ *
+ * An out-of-range option does not crash the search — it degenerates it quietly.
+ * A negative `maxGenerations` returns the initial population as though the
+ * budget ran out; a `stallGenerations` of 0 stops after one generation even when
+ * that generation improved; a `hardPenaltyWeight` of 0 makes hard constraints
+ * invisible to selection while still reporting `feasible: false`. Each of those
+ * looks like a solver that cannot solve the problem rather than like a caller
+ * mistake, so they are rejected at the door.
+ *
+ * `seed` is the one exception: it is validated by `createRng`, which is the
+ * single place that consumes it and is also reachable directly.
+ */
+const resolveOptions = (options: SolverOptions): ResolvedOptions => {
+  const populationSize = options.populationSize ?? 100;
+  assertInteger('populationSize', populationSize, 2);
 
   const elitismCount = options.elitismCount ?? 2;
 
@@ -43,24 +80,49 @@ const resolveOptions = (options: SolverOptions): ResolvedOptions => {
   }
 
   const tournamentSize = options.tournamentSize ?? 3;
+  assertInteger('tournamentSize', tournamentSize, 1);
 
-  if (!Number.isInteger(tournamentSize) || tournamentSize < 1) {
+  // Zero is allowed: it means "score the initial population and stop", which is
+  // a coherent request rather than a mistake.
+  const maxGenerations = options.maxGenerations ?? 500;
+  assertInteger('maxGenerations', maxGenerations, 0);
+
+  const mutationProbability = options.mutationProbability ?? 0.2;
+  assertProbability('mutationProbability', mutationProbability);
+
+  const crossoverProbability = options.crossoverProbability ?? 0.9;
+  assertProbability('crossoverProbability', crossoverProbability);
+
+  // Strictly positive: at 0 a hard violation adds nothing to the penalty, so the
+  // search would optimise soft preferences while ignoring feasibility. A caller
+  // who wants that should declare those constraints soft.
+  const hardPenaltyWeight = options.hardPenaltyWeight ?? 1000;
+
+  if (!Number.isFinite(hardPenaltyWeight) || hardPenaltyWeight <= 0) {
     throw new RangeError(
-      `tournamentSize must be an integer >= 1, received ${String(tournamentSize)}`,
+      `hardPenaltyWeight must be a finite number > 0, received ${String(hardPenaltyWeight)}`,
     );
   }
+
+  const targetPenalty = options.targetPenalty ?? 0;
+  assertFiniteAtLeast('targetPenalty', targetPenalty, 0);
+
+  // At least 1: at 0 the stall check fires at the end of the first generation
+  // even when that generation improved, because the counter is reset to 0 first.
+  const stallGenerations = options.stallGenerations ?? 100;
+  assertInteger('stallGenerations', stallGenerations, 1);
 
   return {
     populationSize,
     elitismCount,
     tournamentSize,
-    maxGenerations: options.maxGenerations ?? 500,
-    mutationProbability: options.mutationProbability ?? 0.2,
-    crossoverProbability: options.crossoverProbability ?? 0.9,
+    maxGenerations,
+    mutationProbability,
+    crossoverProbability,
+    hardPenaltyWeight,
+    targetPenalty,
+    stallGenerations,
     seed: options.seed ?? 1,
-    hardPenaltyWeight: options.hardPenaltyWeight ?? 1000,
-    targetPenalty: options.targetPenalty ?? 0,
-    stallGenerations: options.stallGenerations ?? 100,
   };
 };
 

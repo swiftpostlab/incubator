@@ -6,10 +6,19 @@ import type { Rng } from './types.ts';
  * `Math.random` is deliberately not used: a seeded generator makes a solver run
  * reproducible, which is the difference between a test that pins behaviour and
  * one that fails once a fortnight for no visible reason.
+ *
+ * The seed must be an integer. A fractional seed would be truncated, making
+ * `1.2` and `1.9` produce the same stream, and a non-finite one would silently
+ * fall back to `1` — both quietly destroy the reproducibility the seed exists
+ * for, so they are rejected instead.
  */
 export const createRng = (seed = 1): Rng => {
+  if (!Number.isInteger(seed)) {
+    throw new RangeError(`seed must be an integer, received ${String(seed)}`);
+  }
+
   // Keep the state away from 0, which would make mulberry32 degenerate.
-  let state = Math.trunc(seed) || 1;
+  let state = seed || 1;
 
   const next = (): number => {
     state = (state + 0x6d2b79f5) | 0;

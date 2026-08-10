@@ -143,6 +143,64 @@ describe('evaluateCandidate', () => {
     );
   });
 
+  test('rejects a negative or non-finite weight', () => {
+    // A negative weight turns a violation into a reward; a NaN weight poisons
+    // the penalty without throwing, making every selection comparison false.
+    assert.throws(
+      () =>
+        evaluateCandidate(null, [constant('neg-weight', 'hard', 1, -1)], 1000),
+      RangeError,
+    );
+    assert.throws(
+      () =>
+        evaluateCandidate(
+          null,
+          [constant('nan-weight', 'soft', 1, Number.NaN)],
+          1000,
+        ),
+      RangeError,
+    );
+    assert.throws(
+      () =>
+        evaluateCandidate(
+          null,
+          [constant('inf-weight', 'soft', 1, Number.POSITIVE_INFINITY)],
+          1000,
+        ),
+      RangeError,
+    );
+  });
+
+  test('a weight of 0 disables the constraint without erroring', () => {
+    const result = evaluateCandidate(
+      null,
+      [constant('disabled', 'hard', 99, 0)],
+      1000,
+    );
+
+    assert.equal(result.penalty, 0);
+    assert.equal(
+      result.feasible,
+      true,
+      'a zero-weighted hard rule cannot make it infeasible',
+    );
+    assert.equal(
+      result.breakdown[0].violation,
+      99,
+      'the raw violation is still reported',
+    );
+    assert.equal(result.breakdown[0].weighted, 0);
+  });
+
+  test('a bad weight is caught even when the violation is 0', () => {
+    // The check must not hide behind `violation > 0`, or a misconfigured
+    // constraint would only surface once something happened to break it.
+    assert.throws(
+      () => evaluateCandidate(null, [constant('quiet', 'hard', 0, -2)], 1000),
+      /quiet/,
+    );
+  });
+
   test('names the offending constraint in the error', () => {
     assert.throws(
       () =>

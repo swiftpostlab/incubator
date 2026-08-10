@@ -73,18 +73,30 @@ a larger population, not a luckier seed.
 
 ## Options
 
-| Option | Default | Meaning |
-|--------|---------|---------|
-| `populationSize` | 100 | Candidates per generation. |
-| `maxGenerations` | 500 | Hard cap. |
-| `mutationProbability` | 0.2 | Chance a child is mutated. |
-| `crossoverProbability` | 0.9 | Chance two parents are combined rather than one copied. |
-| `elitismCount` | 2 | Best candidates carried over untouched. |
-| `tournamentSize` | 3 | Selection pressure — higher converges faster and explores less. |
-| `seed` | 1 | RNG seed. |
-| `hardPenaltyWeight` | 1000 | How much a hard violation outweighs soft ones. |
-| `targetPenalty` | 0 | Stop once the best penalty reaches this. |
-| `stallGenerations` | 100 | Stop after this many generations with no improvement. |
+| Option | Default | Range | Meaning |
+|--------|---------|-------|---------|
+| `populationSize` | 100 | integer >= 2 | Candidates per generation. |
+| `maxGenerations` | 500 | integer >= 0 | Hard cap. `0` scores the initial population and stops. |
+| `mutationProbability` | 0.2 | [0, 1] | Chance a child is mutated. |
+| `crossoverProbability` | 0.9 | [0, 1] | Chance two parents are combined rather than one copied. |
+| `elitismCount` | 2 | integer in [0, `populationSize`) | Best candidates carried over untouched. |
+| `tournamentSize` | 3 | integer >= 1 | Selection pressure — higher converges faster and explores less. |
+| `seed` | 1 | any integer | RNG seed. |
+| `hardPenaltyWeight` | 1000 | finite > 0 | How much a hard violation outweighs soft ones. |
+| `targetPenalty` | 0 | finite >= 0 | Stop once the best penalty reaches this. |
+| `stallGenerations` | 100 | integer >= 1 | Stop after this many generations with no improvement. |
+
+Every option is range-checked before the search starts; an out-of-range value throws a `RangeError`
+naming the option. The strictness is deliberate — a bad option does not crash the solver, it
+degenerates it quietly. A `stallGenerations` of `0` would end the run after one generation even when
+that generation improved; a `hardPenaltyWeight` of `0` would make hard violations invisible to
+selection while still reporting `feasible: false`; a fractional `seed` would be truncated, so `1.2`
+and `1.9` would give the same run. Each of those looks like a solver that cannot solve your problem
+rather than like a mistake in the call.
+
+Constraint `weight` is checked the same way: finite and `>= 0`, where `0` disables the constraint. A
+negative weight would turn a violation into a reward, and a `NaN` one would poison the penalty
+without throwing — making every comparison in selection false and the search wander.
 
 `solve` returns `stopReason` — `target-reached`, `stalled`, or `max-generations` — so you can tell a
 solved problem from an exhausted budget.

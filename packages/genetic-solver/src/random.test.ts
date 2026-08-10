@@ -62,6 +62,20 @@ describe('createRng', () => {
     assert.throws(() => rng.pick([]), RangeError);
   });
 
+  test('rejects a non-integer or non-finite seed', () => {
+    // Truncating would make 1.2 and 1.9 the same run, and falling back to a
+    // default would make a NaN seed silently reproducible as seed 1. Both
+    // destroy the guarantee the seed exists to provide.
+    assert.throws(() => createRng(1.5), RangeError);
+    assert.throws(() => createRng(Number.NaN), RangeError);
+    assert.throws(() => createRng(Number.POSITIVE_INFINITY), RangeError);
+  });
+
+  test('accepts any integer seed, including negatives', () => {
+    assert.doesNotThrow(() => createRng(-7));
+    assert.notEqual(createRng(-7).next(), createRng(7).next());
+  });
+
   test('seed 0 does not collapse the generator', () => {
     const rng = createRng(0);
     const values = new Set(Array.from({ length: 50 }, () => rng.next()));

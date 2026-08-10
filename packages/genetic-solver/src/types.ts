@@ -29,7 +29,10 @@ export interface Constraint<TCandidate> {
    * `soft` constraints express preferences and are traded off against each other.
    */
   readonly kind: ConstraintKind;
-  /** Multiplier applied to this constraint's violation. Defaults to 1. */
+  /**
+   * Multiplier applied to this constraint's violation. Finite and >= 0, where 0
+   * disables the constraint. Defaults to 1.
+   */
   readonly weight?: number;
   /** Returns the violation magnitude; must be finite and >= 0. */
   evaluate(candidate: TCandidate): number;
@@ -98,28 +101,47 @@ export interface SolveResult<TCandidate> {
   readonly history: readonly number[];
 }
 
+/**
+ * Every option is range-checked by `solve`, which throws a `RangeError` naming
+ * the offending one. Each doc comment below states the accepted range.
+ */
 export interface SolverOptions {
-  /** Candidates per generation. Default 100. */
+  /** Candidates per generation. Integer >= 2. Default 100. */
   readonly populationSize?: number;
-  /** Hard cap on generations. Default 500. */
+  /**
+   * Hard cap on generations. Integer >= 0, where 0 means "score the initial
+   * population and stop". Default 500.
+   */
   readonly maxGenerations?: number;
-  /** Chance a child is mutated after selection. Default 0.2. */
+  /** Chance a child is mutated after selection. In [0, 1]. Default 0.2. */
   readonly mutationProbability?: number;
-  /** Chance two parents are combined rather than one being copied. Default 0.9. */
+  /**
+   * Chance two parents are combined rather than one being copied. In [0, 1].
+   * Default 0.9.
+   */
   readonly crossoverProbability?: number;
-  /** Best candidates carried into the next generation untouched. Default 2. */
+  /**
+   * Best candidates carried into the next generation untouched. Integer in
+   * [0, populationSize). Default 2.
+   */
   readonly elitismCount?: number;
-  /** Candidates entered in each selection tournament. Default 3. */
+  /** Candidates entered in each selection tournament. Integer >= 1. Default 3. */
   readonly tournamentSize?: number;
-  /** Seed for the internal RNG. Default 1. Same seed plus same problem gives the same run. */
+  /**
+   * Seed for the internal RNG. Any integer. Default 1. Same seed plus same
+   * problem gives the same run.
+   */
   readonly seed?: number;
   /**
    * Multiplier making a hard violation outweigh any realistic soft total.
-   * Default 1000.
+   * Finite and > 0. Default 1000.
    */
   readonly hardPenaltyWeight?: number;
-  /** Stop once the best penalty is at or below this. Default 0. */
+  /** Stop once the best penalty is at or below this. Finite and >= 0. Default 0. */
   readonly targetPenalty?: number;
-  /** Stop after this many generations with no improvement. Default 100. */
+  /**
+   * Stop after this many generations with no improvement. Integer >= 1.
+   * Default 100.
+   */
   readonly stallGenerations?: number;
 }

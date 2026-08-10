@@ -39,7 +39,20 @@ export const evaluateCandidate = <TCandidate>(
       );
     }
 
-    const weighted = violation * (constraint.weight ?? 1);
+    const weight = constraint.weight ?? 1;
+
+    // A negative weight would turn a violation into a reward, and a non-finite
+    // one poisons the penalty with NaN — which does not throw, it just makes
+    // every comparison in selection false and the search wander. Neither is
+    // recoverable, so both are rejected here rather than at construction: a
+    // `Constraint` is a plain object and need not come from the builders.
+    if (!Number.isFinite(weight) || weight < 0) {
+      throw new RangeError(
+        `Constraint '${constraint.id}' has weight ${String(weight)}; expected a finite value >= 0`,
+      );
+    }
+
+    const weighted = violation * weight;
     breakdown.push({
       id: constraint.id,
       kind: constraint.kind,
