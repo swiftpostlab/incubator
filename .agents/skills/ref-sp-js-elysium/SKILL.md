@@ -1,12 +1,12 @@
 ---
-name: ref-spst-js-elysium
+name: ref-sp-js-elysium
 description: "SwiftPost Elysium UI library reference. Use when: importing components from @swiftpost/elysium, choosing between base and enhanced UI primitives, wiring providers, or using Elysium-specific slots, sx utilities, and theme helpers."
 metadata:
-  shareable-skills.owner-prefix: "spst"
-  shareable-skills.owner: "swiftpostlabs/swiftpost-site-template"
+  shareable-skills.owner-prefix: "sp"
+  shareable-skills.owner: "swiftpostlab/incubator"
   shareable-skills.domain: "js"
   shareable-skills.visibility: "repo-local"
-  shareable-skills.reason: "This skill documents the template's local @swiftpost/elysium package."
+  shareable-skills.reason: "This skill documents this repo's local @swiftpost/elysium package."
 ---
 
 # SwiftPost Elysium
@@ -103,4 +103,4 @@ import type { TextProps } from '@swiftpost/elysium/ui/base/Text';
 - Use `InferSlotsFromSlotProps` from `@swiftpost/elysium/ui/types` when defining slot-based APIs.
 - Wrap reusable UI primitives in `memo` and keep `componentBaseName` stable for CSS targeting.
 
-For SwiftPost-specific styling guidance, see the `ref-spst-js-styling` skill.
+For SwiftPost-specific styling guidance, see the `ref-sp-js-styling` skill.
