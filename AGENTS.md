@@ -1,6 +1,12 @@
-# SwiftPost Site Template - Agent Guide
+# SwiftPost Incubator - Agent Guide
 
-This is a TypeScript/React monorepo using Next.js 15 (static export), MUI 7, and Turborepo.
+This is a TypeScript/React monorepo using Next.js 15 (static export), MUI 7, and Turborepo. It is an
+**incubator**: one deployed static site that hosts several small, independent experiments side by
+side, each as a route under `packages/main/src/app/<subproject>/`.
+
+It is downstream of [`swiftpost-site-template`](https://github.com/swiftpostlab/swiftpost-site-template),
+which supplies the baseline stack, tooling, and agent setup. Sync from upstream by rebasing onto it;
+see `ref-sp-dev-config-package` for the divergences that are deliberate and must survive a sync.
 
 This root `AGENTS.md` is the source of truth for repo guidance. `.github/copilot-instructions.md`, `GEMINI.md`, and `.claude/CLAUDE.md` are thin bridges that route back here. Keep always-on rules and routing in this file; keep domain-specific detail in the skills under `.agents/skills/`.
 
@@ -68,10 +74,16 @@ All project skills live in `.agents/skills/` and load based on context and trigg
 entry's `Use when` line to pick the skill for the problem at hand.
 
 Skill names follow the sharing-spec grammar `ref-<owner-prefix>-<domain>-<topic>` and
-`tool-<owner-prefix>-<verb>-<topic>`. Shared skills use the `sp` prefix and are synced from the
-installed `agentic-tools` package as symlinks, declared in `.agents/skills.json`; this repo's own
-skills use `spst` and are committed here. Because both live in the same directory, never reuse the
-`sp` prefix for a local skill — see `ref-sp-agents-shareable-skills`.
+`tool-<owner-prefix>-<verb>-<topic>`. Both shared and local skills use the `sp` prefix here, for the
+organization. Shared skills are synced from the installed `agentic-tools` package as symlinks,
+declared in `.agents/skills.json`; this repo's own skills are committed under the same directory.
+
+Because both kinds share the `sp` prefix and the same directory, a local skill that would take a
+name `agentic-tools` already publishes gets an **`-x` suffix** instead — currently only
+`ref-sp-js-next-x`, which layers this repo's static-export constraints on top of the shared
+`ref-sp-js-next`. Before adding a local skill, check the synced names in `.agents/skills.json` and
+suffix on collision; otherwise `yarn sync:skills` will shadow the committed skill with a symlink and
+add it to the generated `.agents/skills/.gitignore`. See `ref-sp-agents-shareable-skills`.
 
 **Shared skills from `agentic-tools`** (synced — never edit in place):
 
@@ -168,31 +180,45 @@ skills use `spst` and are committed here. Because both live in the same director
 **`tool-sp-setup-agent-repo`** — Audit and wire the repo's agent baseline
 - Use when: checking or fixing the `.agents/` workspaces, this file, the bridges, or client wiring
 
-**SwiftPost-specific local skills** (committed in this repo):
+**Repo-local skills** (committed in this repo):
 
-**`ref-spst-dev-site-architecture`** — Template architecture and package boundaries
-- Use when: designing features, structuring components, or deciding where code goes
+**`ref-sp-dev-site-architecture`** — Incubator architecture, subproject model, and package boundaries
+- Use when: adding a subproject, designing features, structuring components, or deciding where code goes
 
-**`ref-spst-js-styling`** — Styling, Slots/SlotProps, responsive layout, and `sx` guidance
+**`ref-sp-js-styling`** — Styling, Slots/SlotProps, responsive layout, and `sx` guidance
 - Use when: building UI, shaping reusable styling APIs, or working with Elysium/MUI `sx` styles
 
-**`ref-spst-js-elysium`** — Elysium package reference
+**`ref-sp-js-elysium`** — Elysium package reference
 - Use when: working with Elysium components, import paths, wrappers, or theming helpers
 
-**`ref-spst-dev-main-package`** — Main app package overview
+**`ref-sp-dev-main-package`** — Main app package overview
 - Use when: working in `packages/main` or deciding whether logic belongs in the app package
 
-**`ref-spst-dev-config-package`** — Shared config package overview
-- Use when: editing `packages/config` or changing shared tooling defaults
+**`ref-sp-dev-config-package`** — Shared config package overview, and the deliberate lint divergences
+- Use when: editing `packages/config`, changing shared tooling defaults, or syncing from upstream
 
-**`ref-spst-dev-code-conventions`** — TypeScript and React code quality standards
+**`ref-sp-dev-code-conventions`** — TypeScript and React code quality standards
 - Use when: creating components, writing hooks, or reviewing TypeScript code
 
-**`ref-spst-js-next`** — Template-specific Next.js conventions
-- Use when: creating pages, working with static-export routing, or configuring Next.js
+**`ref-sp-js-next-x`** — This repo's Next.js static-export, base-path, and i18n conventions
+- Use when: creating pages, working with static-export routing, base paths, or `next-intl`
 
-**`tool-spst-adopt-template`** — Adopt this template elsewhere
-- Use when: porting this template's skills, setup, or AI-safety tooling into another repo
+## Subprojects
+
+Each experiment is a route folder under `packages/main/src/app/<subproject>/`, listed on the home
+page via `HomeLinksList.tsx`. Current subprojects: `analytics-tools`, `economic-bubble-analysis`,
+`expense-tracker`.
+
+The governing rule is **deletability**: removing a subproject should mean deleting its route folder,
+its entry in the home list, and its strings — nothing else. So:
+
+- Default to co-locating a subproject's code under its own folder (`components/`, `features/`,
+  `types/`). Promote to `src/features/` or `src/components/` only when something is genuinely shared.
+- Never import across subprojects. If two need the same thing, promote it first.
+- Add new user-facing strings to **every** catalog in `src/i18n/translations/`.
+
+See `ref-sp-dev-site-architecture` for placement rules and `ref-sp-dev-main-package` for the
+add/remove checklist.
 
 ## Workflow
 
