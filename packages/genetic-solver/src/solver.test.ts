@@ -278,6 +278,88 @@ describe('local search', () => {
   });
 });
 
+describe('initialCandidates', () => {
+  test('a seeded optimum is found without any searching', () => {
+    const result = solve(identityProblem(12), {
+      seed: 1,
+      populationSize: 20,
+      initialCandidates: [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]],
+    });
+
+    assert.equal(result.stopReason, 'target-reached');
+    assert.equal(result.generations, 0, 'the answer was already in the seed');
+    assert.deepEqual(
+      [...result.best.candidate],
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    );
+  });
+
+  test('seeds are scored like anything else, not trusted', () => {
+    // A deliberately terrible seed must not survive on the strength of being a
+    // seed. It gets one slot in the population and is then out-competed.
+    const terrible = Array.from({ length: 10 }, () => 9);
+    const result = solve(identityProblem(10), {
+      seed: 1,
+      populationSize: 30,
+      maxGenerations: 40,
+      initialCandidates: [terrible],
+    });
+
+    assert.ok(
+      result.best.penalty < 9000,
+      'a bad seed should not hold the search back',
+    );
+  });
+
+  test('seeding still fills the rest of the population at random', () => {
+    const populationSize = 12;
+    const result = solve(identityProblem(10), {
+      seed: 1,
+      populationSize,
+      maxGenerations: 0,
+      initialCandidates: [Array.from({ length: 10 }, () => 0)],
+    });
+
+    assert.equal(
+      result.evaluations,
+      populationSize,
+      'one seed plus eleven random candidates',
+    );
+  });
+
+  test('rejects more seeds than the population can hold', () => {
+    assert.throws(
+      () =>
+        solve(identityProblem(4), {
+          populationSize: 4,
+          initialCandidates: [
+            [0, 0, 0, 0],
+            [1, 1, 1, 1],
+            [2, 2, 2, 2],
+            [3, 3, 3, 3],
+            [0, 1, 2, 3],
+          ],
+        }),
+      /initialCandidates/,
+    );
+  });
+
+  test('exactly filling the population is allowed', () => {
+    assert.doesNotThrow(() =>
+      solve(identityProblem(4), {
+        populationSize: 4,
+        maxGenerations: 1,
+        initialCandidates: [
+          [0, 0, 0, 0],
+          [1, 1, 1, 1],
+          [2, 2, 2, 2],
+          [0, 1, 2, 3],
+        ],
+      }),
+    );
+  });
+});
+
 describe('solve option validation', () => {
   const problem = identityProblem(3);
 

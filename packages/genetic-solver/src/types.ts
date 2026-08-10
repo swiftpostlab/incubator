@@ -115,7 +115,18 @@ export interface SolveResult<TCandidate> {
  * Every option is range-checked by `solve`, which throws a `RangeError` naming
  * the offending one. Each doc comment below states the accepted range.
  */
-export interface SolverOptions {
+export interface SolverOptions<TCandidate = never> {
+  /**
+   * Candidates to place in the initial population instead of random ones. At
+   * most `populationSize` of them.
+   *
+   * The intended use is handing the search a known-good starting point — an
+   * exact solver's answer, or last run's result — so it spends its budget
+   * improving rather than rediscovering. Seeds get the same local-search
+   * treatment as any other candidate and enjoy no permanent protection beyond
+   * elitism, so a bad seed cannot hold the population hostage.
+   */
+  readonly initialCandidates?: readonly TCandidate[];
   /** Candidates per generation. Integer >= 2. Default 100. */
   readonly populationSize?: number;
   /**

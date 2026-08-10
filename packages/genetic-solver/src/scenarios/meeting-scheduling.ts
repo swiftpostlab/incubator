@@ -13,6 +13,7 @@
 
 import { hardConstraint, softConstraint } from '../constraints.ts';
 import { createAssignmentEncoding } from '../encodings.ts';
+import { maximumBipartiteMatching } from '../exact/bipartite-matching.ts';
 import type { Assignment } from '../encodings.ts';
 import type { Constraint, Encoding, Problem, Rng } from '../types.ts';
 
@@ -171,8 +172,8 @@ export const createMeetingProblem = (
    * slot, B onto C's, until the chain reaches a free slot — and the chain has no
    * bounded length, so no fixed neighbourhood contains it. That is bipartite
    * matching, not local search. This step handles the common case where a free
-   * slot is simply within reach; a schedule tight enough to need the chain wants
-   * an exact algorithm instead.
+   * slot is simply within reach; for a schedule tight enough to need the chain,
+   * use `solveMeetingExactly`.
    */
   const repairNeighbour = (assignment: Assignment, rng: Rng): Assignment => {
     const occupants = new Map<number, number[]>();
@@ -293,6 +294,81 @@ export const createMeetingProblem = (
   }
 
   return { encoding, constraints };
+};
+
+/**
+ * Which people could not be placed, and why.
+ *
+ * `bottleneck` is the actionable part: those people between them can only attend
+ * those slots, and there are more of them than slots. That is a proof, not a
+ * diagnosis — no schedule can exist while that stays true, so the only fix is to
+ * widen somebody's availability or add a slot.
+ */
+export interface MeetingBottleneck {
+  readonly people: readonly Person[];
+  readonly slots: readonly Slot[];
+}
+
+export interface ExactSchedule {
+  readonly feasible: boolean;
+  /** One slot index per person. Present only when `feasible`. */
+  readonly assignment?: Assignment;
+  /** People with no slot left. Empty when `feasible`. */
+  readonly unplaced: readonly Person[];
+  /** Present only when infeasible. */
+  readonly bottleneck?: MeetingBottleneck;
+}
+
+/**
+ * Solve the hard core of a meeting problem exactly.
+ *
+ * Giving every person a distinct slot from their own available set *is*
+ * bipartite matching, so it has an exact polynomial algorithm and does not need
+ * a heuristic. Use this whenever the answer you want is "a valid schedule, or a
+ * reason there isn't one":
+ *
+ * - a returned assignment is **guaranteed** valid, not merely the best found;
+ * - `feasible: false` is a **proof** that no schedule exists, where the genetic
+ *   search can only ever report that it did not find one;
+ * - it is fast and deterministic on inputs where the search stalls.
+ *
+ * What it cannot do is trade off preferences: it ignores `spec.preferences`
+ * entirely, because matching optimises the count of placed people and nothing
+ * else. When soft preferences matter, feed this result to `solve` through
+ * `initialCandidates` — the search then starts from a valid schedule and spends
+ * its whole budget on preferences rather than on rediscovering feasibility.
+ */
+export const solveMeetingExactly = (
+  spec: MeetingProblemSpec,
+): ExactSchedule => {
+  validateSpec(spec);
+
+  const slotIndexById = new Map(
+    spec.slots.map((slot, index) => [slot.id, index]),
+  );
+
+  const adjacency = spec.people.map((person) =>
+    person.availableSlotIds.map((slotId) => slotIndexById.get(slotId) ?? 0),
+  );
+
+  const matching = maximumBipartiteMatching(adjacency, spec.slots.length);
+
+  if (matching.complete) {
+    return { feasible: true, assignment: matching.leftMatch, unplaced: [] };
+  }
+
+  return {
+    feasible: false,
+    unplaced: matching.unmatched.map((personIndex) => spec.people[personIndex]),
+    bottleneck: matching.bottleneck && {
+      people: matching.bottleneck.leftNodes.map(
+        (personIndex) => spec.people[personIndex],
+      ),
+      slots: matching.bottleneck.rightNodes.map(
+        (slotIndex) => spec.slots[slotIndex],
+      ),
+    },
+  };
 };
 
 /** Turn a raw assignment back into something a human can read. */

@@ -10,6 +10,7 @@ import {
   createDailySlots,
   createMeetingProblem,
   describeSchedule,
+  solveMeetingExactly,
 } from './meeting-scheduling.ts';
 import type { MeetingProblemSpec, Person } from './meeting-scheduling.ts';
 
@@ -456,6 +457,120 @@ describe('meeting scheduling', () => {
 
     assert.ok(scored > 100, `expected many evaluations, saw ${String(scored)}`);
     assert.equal(worst, 0, 'local search must stay inside the allowed slots');
+  });
+
+  test('the exact solver settles instances the search cannot', () => {
+    // 120 people over 120 slots — no spare capacity at all, so every clash has
+    // to be resolved by a chain of relocations rather than a free slot. This is
+    // the shape that defeats local search, and matching answers it outright.
+    const tightSlots = createDailySlots(
+      Array.from({ length: 30 }, (_unused, day) => `d${String(day)}`),
+      4,
+    );
+    const window = 30;
+    const roster: Person[] = Array.from({ length: 120 }, (_unused, index) => {
+      const start = index % (tightSlots.length - window + 1);
+      return {
+        id: `p${String(index)}`,
+        availableSlotIds: tightSlots
+          .filter((slot) => slot.index >= start && slot.index < start + window)
+          .map((slot) => slot.id),
+      };
+    });
+    const spec: MeetingProblemSpec = { slots: tightSlots, people: roster };
+
+    const exact = solveMeetingExactly(spec);
+
+    assert.equal(exact.feasible, true);
+    assert.ok(exact.assignment);
+    assert.deepEqual(exact.unplaced, []);
+    assertScheduleIsValid(spec, exact.assignment);
+
+    const heuristic = solve(createMeetingProblem(spec), {
+      seed: 1,
+      populationSize: 60,
+      maxGenerations: 120,
+      stallGenerations: 40,
+      localSearchSteps: 8,
+    });
+
+    assert.equal(
+      heuristic.best.feasible,
+      false,
+      'precondition: the search does not finish this one, which is why exact exists',
+    );
+  });
+
+  test('an impossible schedule comes back with a proof, not a shrug', () => {
+    // Three people, two slots between them. No search budget could ever fix it,
+    // and the useful answer names the group rather than just saying "no".
+    const twoSlots = createDailySlots(['mon'], 2);
+    const crowd = [slotId('mon', 0), slotId('mon', 1)];
+    const spec: MeetingProblemSpec = {
+      slots: twoSlots,
+      people: [
+        { id: 'ana', availableSlotIds: crowd },
+        { id: 'bo', availableSlotIds: crowd },
+      ],
+    };
+
+    // Two people, two slots: fine.
+    assert.equal(solveMeetingExactly(spec).feasible, true);
+
+    const crowded: MeetingProblemSpec = {
+      slots: createDailySlots(['mon'], 3),
+      people: [
+        { id: 'ana', availableSlotIds: crowd },
+        { id: 'bo', availableSlotIds: crowd },
+        { id: 'cai', availableSlotIds: crowd },
+      ],
+    };
+    const result = solveMeetingExactly(crowded);
+
+    assert.equal(result.feasible, false);
+    assert.equal(result.assignment, undefined);
+    assert.equal(result.unplaced.length, 1);
+    assert.ok(result.bottleneck);
+    assert.deepEqual(
+      result.bottleneck.people.map((person) => person.id),
+      ['ana', 'bo', 'cai'],
+    );
+    assert.deepEqual(
+      result.bottleneck.slots.map((slot) => slot.id),
+      crowd,
+    );
+  });
+
+  test('the exact result can seed the search to work on preferences', () => {
+    // The handoff that makes both solvers worth having: matching supplies a
+    // valid schedule, the search spends its whole budget on soft preferences
+    // instead of rediscovering feasibility.
+    const spec: MeetingProblemSpec = {
+      slots: bigSlots,
+      people: bigRoster,
+      preferences: { earlinessWeight: 5 },
+    };
+
+    const exact = solveMeetingExactly(spec);
+    assert.ok(exact.assignment);
+
+    const options = {
+      seed: 2,
+      populationSize: 40,
+      maxGenerations: 40,
+      localSearchSteps: 4,
+    };
+    const warm = solve(createMeetingProblem(spec), {
+      ...options,
+      initialCandidates: [exact.assignment],
+    });
+
+    assert.equal(warm.best.feasible, true);
+    assertScheduleIsValid(spec, warm.best.candidate);
+    assert.ok(
+      warm.best.softViolation <= exact.assignment.length,
+      'seeding must not make the soft score absurd',
+    );
   });
 
   test('scales to a larger roster', () => {

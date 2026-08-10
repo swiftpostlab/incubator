@@ -64,7 +64,9 @@ const assertFiniteAtLeast = (
  * `seed` is the one exception: it is validated by `createRng`, which is the
  * single place that consumes it and is also reachable directly.
  */
-const resolveOptions = (options: SolverOptions): ResolvedOptions => {
+const resolveOptions = <TCandidate>(
+  options: SolverOptions<TCandidate>,
+): ResolvedOptions => {
   const populationSize = options.populationSize ?? 100;
   assertInteger('populationSize', populationSize, 2);
 
@@ -115,6 +117,14 @@ const resolveOptions = (options: SolverOptions): ResolvedOptions => {
 
   const localSearchSteps = options.localSearchSteps ?? 0;
   assertInteger('localSearchSteps', localSearchSteps, 0);
+
+  const seedCount = options.initialCandidates?.length ?? 0;
+
+  if (seedCount > populationSize) {
+    throw new RangeError(
+      `initialCandidates has ${String(seedCount)} entries, which exceeds populationSize ${String(populationSize)}`,
+    );
+  }
 
   return {
     localSearchSteps,
@@ -173,7 +183,7 @@ const byPenaltyAscending = <TCandidate>(
  */
 export const solve = <TCandidate>(
   problem: Problem<TCandidate>,
-  options: SolverOptions = {},
+  options: SolverOptions<TCandidate> = {},
 ): SolveResult<TCandidate> => {
   const resolved = resolveOptions(options);
   const rng = createRng(resolved.seed);
@@ -219,9 +229,14 @@ export const solve = <TCandidate>(
     return current;
   };
 
-  let population = Array.from({ length: resolved.populationSize }, () =>
-    refine(encoding.create(rng)),
-  ).sort(byPenaltyAscending);
+  const seeds = options.initialCandidates ?? [];
+
+  let population = [
+    ...seeds.map((candidate) => refine(candidate)),
+    ...Array.from({ length: resolved.populationSize - seeds.length }, () =>
+      refine(encoding.create(rng)),
+    ),
+  ].sort(byPenaltyAscending);
 
   let best = population[0];
   const history: number[] = [best.penalty];

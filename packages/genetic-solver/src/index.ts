@@ -9,12 +9,22 @@ export {
 export { createAssignmentEncoding } from './encodings.ts';
 export type { Assignment, AssignmentEncodingOptions } from './encodings.ts';
 
+export { maximumBipartiteMatching } from './exact/bipartite-matching.ts';
+export type {
+  Adjacency,
+  Bottleneck,
+  MatchingResult,
+} from './exact/bipartite-matching.ts';
+
 export {
   createDailySlots,
   createMeetingProblem,
   describeSchedule,
+  solveMeetingExactly,
 } from './scenarios/meeting-scheduling.ts';
 export type {
+  ExactSchedule,
+  MeetingBottleneck,
   MeetingPreferences,
   MeetingProblemSpec,
   Person,
