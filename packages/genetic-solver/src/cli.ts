@@ -1,12 +1,10 @@
 /**
  * Command-line front end for the scheduling scenario.
  *
- * Reads a spec as JSON, picks the right solver for it, and prints either a
- * schedule or the reason none exists. The solver choice is not left to the
- * caller: with no preferences the problem is bipartite matching and gets the
- * exact algorithm, and preferences add a genetic pass seeded from that exact
- * answer. Making that automatic is the point — it is the decision most callers
- * would get wrong, and it is fully determined by the input.
+ * Argument parsing, file and stdin reading, and printing. The decisions that
+ * are not specific to a terminal — validating a spec and choosing a solver —
+ * live in `scenarios/meeting-request.ts`, so the browser front end runs the
+ * exact same logic rather than a second copy of it.
  *
  * Usage:
  *   node src/cli.ts <spec.json> [options]
@@ -16,19 +14,14 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import { solve } from './solver.ts';
+import { describeSchedule } from './scenarios/meeting-scheduling.ts';
 import {
-  createDailySlots,
-  createMeetingProblem,
-  describeSchedule,
-  solveMeetingExactly,
-} from './scenarios/meeting-scheduling.ts';
-import type {
-  MeetingPreferences,
-  MeetingProblemSpec,
-  Person,
-  Slot,
-} from './scenarios/meeting-scheduling.ts';
+  InputError,
+  defaultRunOptions,
+  solveRequest,
+} from './scenarios/meeting-request.ts';
+import type { RunOutcome } from './scenarios/meeting-request.ts';
+import type { MeetingProblemSpec } from './scenarios/meeting-scheduling.ts';
 
 /**
  * Exit codes are distinct so a script can tell the three outcomes apart:
@@ -65,163 +58,6 @@ Supply "slots" explicitly instead of "days"/"slotsPerDay" for an irregular grid.
 
 Exit codes: ${String(exitCodes.scheduled)} scheduled, ${String(exitCodes.infeasible)} no schedule exists, ${String(exitCodes.badInput)} bad input.
 `;
-
-interface RawSpec {
-  readonly slots?: readonly Slot[];
-  readonly days?: readonly string[];
-  readonly slotsPerDay?: number;
-  readonly people?: readonly Person[];
-  readonly preferences?: MeetingPreferences;
-}
-
-/** Thrown for anything the caller can fix by changing their input. */
-export class InputError extends Error {}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-/**
- * Turn parsed JSON into a spec, or explain what is wrong with it.
- *
- * The checks here are deliberately about *shape*. Everything semantic — unknown
- * slot ids, duplicate ids, more people than slots — is left to the scenario's
- * own validation, so the rules live in one place and the CLI cannot drift from
- * them.
- */
-export const parseSpec = (input: unknown): MeetingProblemSpec => {
-  if (!isRecord(input)) {
-    throw new InputError('The spec must be a JSON object');
-  }
-
-  const raw = input as RawSpec;
-
-  if (!Array.isArray(raw.people)) {
-    throw new InputError('The spec needs a "people" array');
-  }
-
-  raw.people.forEach((person, index) => {
-    if (!isRecord(person) || typeof person.id !== 'string') {
-      throw new InputError(`people[${String(index)}] needs a string "id"`);
-    }
-
-    if (
-      !Array.isArray(person.availableSlotIds) ||
-      person.availableSlotIds.some((slotId) => typeof slotId !== 'string')
-    ) {
-      throw new InputError(
-        `people[${String(index)}] needs "availableSlotIds" as an array of strings`,
-      );
-    }
-  });
-
-  if (raw.slots !== undefined) {
-    if (!Array.isArray(raw.slots)) {
-      throw new InputError('"slots" must be an array when given');
-    }
-
-    return {
-      slots: raw.slots,
-      people: raw.people,
-      preferences: raw.preferences,
-    };
-  }
-
-  if (!Array.isArray(raw.days) || typeof raw.slotsPerDay !== 'number') {
-    throw new InputError(
-      'Give either "slots", or "days" plus "slotsPerDay", to describe the grid',
-    );
-  }
-
-  return {
-    slots: createDailySlots(raw.days, raw.slotsPerDay),
-    people: raw.people,
-    preferences: raw.preferences,
-  };
-};
-
-const hasPreferences = (spec: MeetingProblemSpec): boolean => {
-  const { compactDaysWeight = 0, earlinessWeight = 0 } = spec.preferences ?? {};
-  return compactDaysWeight > 0 || earlinessWeight > 0;
-};
-
-export interface RunOptions {
-  readonly seed: number;
-  readonly localSearchSteps: number;
-  readonly maxGenerations: number;
-}
-
-export interface RunOutcome {
-  readonly scheduled: boolean;
-  readonly method: 'exact' | 'exact+genetic';
-  readonly assignment?: readonly number[];
-  readonly softViolation?: number;
-  readonly unplaced: readonly string[];
-  readonly bottleneck?: {
-    readonly people: readonly string[];
-    readonly slots: readonly string[];
-  };
-}
-
-/**
- * Solve a spec, exact first and genetic only where it adds something.
- *
- * Kept separate from argument parsing and printing so it can be tested without
- * a process, and reused by anything else that wants the same solver choice.
- */
-export const run = (
-  spec: MeetingProblemSpec,
-  options: RunOptions,
-): RunOutcome => {
-  const exact = solveMeetingExactly(spec);
-
-  if (!exact.feasible || exact.assignment === undefined) {
-    return {
-      scheduled: false,
-      method: 'exact',
-      unplaced: exact.unplaced.map((person) => person.id),
-      bottleneck: exact.bottleneck && {
-        people: exact.bottleneck.people.map((person) => person.id),
-        slots: exact.bottleneck.slots.map((slot) => slot.id),
-      },
-    };
-  }
-
-  if (!hasPreferences(spec)) {
-    return {
-      scheduled: true,
-      method: 'exact',
-      assignment: exact.assignment,
-      unplaced: [],
-    };
-  }
-
-  const refined = solve(createMeetingProblem(spec), {
-    seed: options.seed,
-    localSearchSteps: options.localSearchSteps,
-    maxGenerations: options.maxGenerations,
-    initialCandidates: [exact.assignment],
-  });
-
-  // The seed is already feasible and seeding cannot make the best worse, so this
-  // is belt and braces rather than a real branch — but a silent downgrade from a
-  // valid schedule to an invalid one is exactly the bug worth being loud about.
-  if (!refined.best.feasible) {
-    return {
-      scheduled: true,
-      method: 'exact',
-      assignment: exact.assignment,
-      unplaced: [],
-    };
-  }
-
-  return {
-    scheduled: true,
-    method: 'exact+genetic',
-    assignment: refined.best.candidate,
-    softViolation: refined.best.softViolation,
-    unplaced: [],
-  };
-};
 
 /** "1 slot" rather than "1 slots" — the bottleneck message reads as a sentence. */
 const count = (value: number, singular: string, plural: string): string =>
@@ -325,25 +161,18 @@ export const main = (argv: readonly string[]): number => {
 
   try {
     const source = readInput(parsed.positionals[0]);
-    let json: unknown;
-
-    try {
-      json = JSON.parse(source);
-    } catch (error) {
-      throw new InputError(
-        `The spec is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-
-    const spec = parseSpec(json);
-    const outcome = run(spec, {
-      seed: numeric('seed', parsed.values.seed, 1),
+    const { spec, outcome } = solveRequest(source, {
+      seed: numeric('seed', parsed.values.seed, defaultRunOptions.seed),
       localSearchSteps: numeric(
         'local-search',
         parsed.values['local-search'],
-        8,
+        defaultRunOptions.localSearchSteps,
       ),
-      maxGenerations: numeric('generations', parsed.values.generations, 200),
+      maxGenerations: numeric(
+        'generations',
+        parsed.values.generations,
+        defaultRunOptions.maxGenerations,
+      ),
     });
 
     process.stdout.write(

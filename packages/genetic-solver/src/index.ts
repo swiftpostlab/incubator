@@ -22,6 +22,15 @@ export {
   describeSchedule,
   solveMeetingExactly,
 } from './scenarios/meeting-scheduling.ts';
+
+export {
+  InputError,
+  defaultRunOptions,
+  parseSpec,
+  run,
+  solveRequest,
+} from './scenarios/meeting-request.ts';
+export type { RunOptions, RunOutcome } from './scenarios/meeting-request.ts';
 export type {
   ExactSchedule,
   MeetingBottleneck,

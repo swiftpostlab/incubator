@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { InputError, parseSpec, run } from './cli.ts';
-import type { MeetingProblemSpec } from './scenarios/meeting-scheduling.ts';
+import { InputError, parseSpec, run } from './meeting-request.ts';
+import type { MeetingProblemSpec } from './meeting-scheduling.ts';
 
 const defaultOptions = {
   seed: 1,
