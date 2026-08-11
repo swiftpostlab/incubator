@@ -13,6 +13,7 @@
   "dependencies": {
     "@mui/icons-material": "^7",
     "@swiftpost/elysium": "*",
+    "@swiftpost/genetic-solver": "*",
     "@tanstack/react-query": "^5.62.0",
     "apisauce": "^3.2.2",
     "date-fns": "^4.1.0",

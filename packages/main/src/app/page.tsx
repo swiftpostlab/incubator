@@ -11,6 +11,7 @@ const Home: React.FC = () => {
         <Link href="/economic-bubble-analysis">
           {'Economic Bubble Analysis'}
         </Link>
+        <Link href="/meeting-scheduler">{'Meeting Scheduler'}</Link>
         {/* Add here more links when creating new features */}
       </Stack>
     </BasePageTemplate>
