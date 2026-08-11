@@ -7,18 +7,18 @@ import Button from '@swiftpost/elysium/ui/base/Button';
 import Stack from '@swiftpost/elysium/ui/base/Stack';
 import Text from '@swiftpost/elysium/ui/base/Text';
 import TextField from '@swiftpost/elysium/ui/base/TextField ';
-import {
-  InputError,
-  describeSchedule,
-  solveRequest,
-} from '@swiftpost/genetic-solver';
-import type { RunOutcome, Schedule } from '@swiftpost/genetic-solver';
+import { InputError, solveRequest } from '@swiftpost/genetic-solver';
+import type { RequestResult } from '@swiftpost/genetic-solver';
 
 /**
- * The example is the documentation. It is deliberately solvable but tight, so
- * deleting one availability shows the infeasible path without any other edit.
+ * The examples are the documentation, which is why there are two.
+ *
+ * The roster is the short form and the one that keeps the proof. The plan shows
+ * everything the roster cannot say — a two-person meeting, someone needing two
+ * meetings, and rules relating them — and is deliberately the same request the
+ * roster could not express, so the difference is legible by reading both.
  */
-const exampleSpec = `{
+const rosterExample = `{
   "days": ["mon", "tue"],
   "slotsPerDay": 3,
   "people": [
@@ -29,29 +29,44 @@ const exampleSpec = `{
   "preferences": { "compactDaysWeight": 0, "earlinessWeight": 0 }
 }`;
 
-interface Result {
-  readonly outcome: RunOutcome;
-  readonly schedule?: Schedule;
-}
+const planExample = `{
+  "days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+  "slotsPerDay": 3,
+  "needs": { "ana": 1, "bo": 1, "zoe": 1, "jerry": 2 },
+  "meetings": [
+    { "id": "ana-solo", "attendees": ["ana"] },
+    { "id": "bo-solo", "attendees": ["bo"] },
+    { "id": "zoe-solo", "attendees": ["zoe"] },
+    { "id": "bo-zoe-lunch", "attendees": ["bo", "zoe"],
+      "allowedSlotIds": ["Mon#1", "Tue#1", "Wed#1", "Thu#1", "Fri#1"] },
+    { "id": "jerry-1", "attendees": ["jerry"] },
+    { "id": "jerry-2", "attendees": ["jerry"] }
+  ],
+  "rules": [
+    { "kind": "spacing", "person": "jerry", "minDays": 2 },
+    { "kind": "not-same-day", "people": ["ana", "bo"] },
+    { "kind": "avoid", "meeting": "bo-zoe-lunch", "weight": 5 }
+  ]
+}`;
 
 /** "1 slot" rather than "1 slots" — the bottleneck line reads as a sentence. */
 const count = (value: number, singular: string, plural: string): string =>
   `${String(value)} ${value === 1 ? singular : plural}`;
 
 const MeetingSchedulerClient: React.FC = () => {
-  const [spec, setSpec] = useState(exampleSpec);
-  const [result, setResult] = useState<Result | undefined>(undefined);
+  const [spec, setSpec] = useState(rosterExample);
+  const [result, setResult] = useState<RequestResult | undefined>(undefined);
   const [error, setError] = useState<string | undefined>(undefined);
+
+  const loadExample = (example: string) => () => {
+    setSpec(example);
+    setResult(undefined);
+    setError(undefined);
+  };
 
   const handleSolve = () => {
     try {
-      const { spec: parsed, outcome } = solveRequest(spec);
-
-      setResult({
-        outcome,
-        schedule:
-          outcome.assignment && describeSchedule(parsed, outcome.assignment),
-      });
+      setResult(solveRequest(spec));
       setError(undefined);
     } catch (caught) {
       // InputError is a malformed spec and RangeError is one the scenario
@@ -75,9 +90,11 @@ const MeetingSchedulerClient: React.FC = () => {
             Meeting Scheduler
           </Text>
           <Text color="text.secondary">
-            Give everyone a one-to-one meeting without booking anybody when they
-            are unavailable. With no preferences this is exact: a schedule is
-            guaranteed valid, and a failure is a proof that none exists.
+            Place meetings into slots without booking anybody when they are
+            unavailable. A roster — one meeting each — is solved exactly: the
+            plan is guaranteed valid, and a failure is a proof that none exists.
+            A plan with joint meetings or rules relating people is searched
+            instead, and then a failure only means none was found.
           </Text>
         </Stack>
 
@@ -96,15 +113,8 @@ const MeetingSchedulerClient: React.FC = () => {
           <Button variant="contained" onClick={handleSolve}>
             Solve
           </Button>
-          <Button
-            onClick={() => {
-              setSpec(exampleSpec);
-              setResult(undefined);
-              setError(undefined);
-            }}
-          >
-            Reset
-          </Button>
+          <Button onClick={loadExample(rosterExample)}>Roster example</Button>
+          <Button onClick={loadExample(planExample)}>Plan example</Button>
         </Stack>
 
         {error !== undefined && (
@@ -119,39 +129,64 @@ const MeetingSchedulerClient: React.FC = () => {
   );
 };
 
-const ResultView: React.FC<Result> = ({ outcome, schedule }) => {
-  if (!outcome.scheduled) {
+/**
+ * A failed search and a proof of impossibility must never read alike.
+ *
+ * Only the exact solver earns "no plan exists"; anything the genetic search
+ * gave up on says so plainly, because a user who trusts the stronger wording
+ * will stop looking for a plan that may well be there.
+ */
+const FailureView: React.FC<{ outcome: RequestResult['outcome'] }> = ({
+  outcome,
+}) => {
+  if (outcome.certainty === 'not-found') {
     return (
       <Stack spacing={1}>
-        <Text variant="h6">No schedule exists</Text>
+        <Text variant="h6">No plan found</Text>
         <Text color="text.secondary">
-          This is a proof, not a failed search.
+          This is not a proof. The search gave up, and a plan may still exist —
+          this request uses rules that put it beyond the exact solver. Try
+          loosening a rule.
         </Text>
-        {outcome.bottleneck && (
-          <Text component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-            {`${count(outcome.bottleneck.people.length, 'person', 'people')} can only attend ${count(outcome.bottleneck.slots.length, 'slot', 'slots')}:` +
-              `\n  people: ${outcome.bottleneck.people.join(', ')}` +
-              `\n  slots:  ${outcome.bottleneck.slots.join(', ')}`}
-          </Text>
-        )}
       </Stack>
     );
   }
 
-  const meetings = [...(schedule?.meetings ?? [])].sort(
-    (left, right) => left.slot.index - right.slot.index,
+  return (
+    <Stack spacing={1}>
+      <Text variant="h6">No plan exists</Text>
+      <Text color="text.secondary">This is a proof, not a failed search.</Text>
+      {outcome.bottleneck && (
+        <Text component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
+          {`${count(outcome.bottleneck.meetings.length, 'meeting', 'meetings')} can only use ${count(outcome.bottleneck.slots.length, 'slot', 'slots')}:` +
+            `\n  meetings: ${outcome.bottleneck.meetings.join(', ')}` +
+            `\n  slots:    ${outcome.bottleneck.slots.join(', ')}`}
+        </Text>
+      )}
+    </Stack>
   );
+};
+
+const ResultView: React.FC<RequestResult> = ({ outcome, plan }) => {
+  if (!outcome.scheduled || !plan) {
+    return <FailureView outcome={outcome} />;
+  }
 
   return (
     <Stack spacing={1}>
       <Text variant="h6">
-        {`Scheduled ${String(meetings.length)} meetings via ${outcome.method}`}
+        {`Scheduled ${count(plan.scheduled.length, 'meeting', 'meetings')} via ${outcome.method}`}
       </Text>
-      {meetings.map((meeting) => (
-        <Text key={meeting.person.id} component="pre" margin={0}>
-          {`${meeting.person.id}  →  ${meeting.slot.id}`}
+      {plan.scheduled.map((entry) => (
+        <Text key={entry.meeting.id} component="pre" margin={0}>
+          {`${entry.meeting.attendees.join(', ')}  →  ${entry.slot.id}`}
         </Text>
       ))}
+      {plan.dropped.length > 0 && (
+        <Text color="text.secondary">
+          {`Not scheduled: ${plan.dropped.map((meeting) => meeting.id).join(', ')}`}
+        </Text>
+      )}
       {outcome.softViolation !== undefined && (
         <Text color="text.secondary">
           {`Preference cost: ${outcome.softViolation.toFixed(4)}`}
