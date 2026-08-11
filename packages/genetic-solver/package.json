@@ -11,6 +11,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "solve": "node src/cli.ts",
     "lint": "eslint .",
     "lint:fix": "yarn lint --fix",
     "typecheck": "tsc --noEmit",
