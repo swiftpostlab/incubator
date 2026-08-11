@@ -34,6 +34,10 @@ interface Result {
   readonly schedule?: Schedule;
 }
 
+/** "1 slot" rather than "1 slots" — the bottleneck line reads as a sentence. */
+const count = (value: number, singular: string, plural: string): string =>
+  `${String(value)} ${value === 1 ? singular : plural}`;
+
 const MeetingSchedulerClient: React.FC = () => {
   const [spec, setSpec] = useState(exampleSpec);
   const [result, setResult] = useState<Result | undefined>(undefined);
@@ -125,7 +129,7 @@ const ResultView: React.FC<Result> = ({ outcome, schedule }) => {
         </Text>
         {outcome.bottleneck && (
           <Text component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-            {`${String(outcome.bottleneck.people.length)} people can only attend ${String(outcome.bottleneck.slots.length)}: ` +
+            {`${count(outcome.bottleneck.people.length, 'person', 'people')} can only attend ${count(outcome.bottleneck.slots.length, 'slot', 'slots')}:` +
               `\n  people: ${outcome.bottleneck.people.join(', ')}` +
               `\n  slots:  ${outcome.bottleneck.slots.join(', ')}`}
           </Text>
