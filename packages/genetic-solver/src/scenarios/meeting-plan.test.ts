@@ -7,6 +7,7 @@ import {
   createPlanProblem,
   describePlan,
   planIsExactlySolvable,
+  solvePlan as solvePlanRouted,
   validatePlanSpec,
 } from './meeting-plan.ts';
 import type { MeetingPlanSpec } from './meeting-plan.ts';
@@ -301,6 +302,98 @@ describe('createPlanProblem on the motivating scenario', () => {
     assert.deepEqual(
       solvePlan(richSpec).best.candidate,
       solvePlan(richSpec).best.candidate,
+    );
+  });
+});
+
+describe('solvePlan routing and certainty', () => {
+  const oneToOne: MeetingPlanSpec = {
+    slots,
+    needs: { ana: 1, bo: 1 },
+    meetings: [
+      { id: 'a', attendees: ['ana'] },
+      { id: 'b', attendees: ['bo'] },
+    ],
+  };
+
+  test('takes the exact route for a one-to-one plan', () => {
+    const outcome = solvePlanRouted(oneToOne);
+
+    assert.equal(outcome.scheduled, true);
+    assert.equal(outcome.method, 'exact');
+    assert.equal(outcome.certainty, 'proof');
+  });
+
+  test('proves impossibility when the exact route applies', () => {
+    const impossible: MeetingPlanSpec = {
+      slots,
+      needs: { ana: 1, bo: 1 },
+      meetings: [
+        { id: 'a', attendees: ['ana'], allowedSlotIds: ['Mon#0'] },
+        { id: 'b', attendees: ['bo'], allowedSlotIds: ['Mon#0'] },
+      ],
+    };
+
+    const outcome = solvePlanRouted(impossible);
+
+    assert.equal(outcome.scheduled, false);
+    assert.equal(outcome.method, 'exact');
+    assert.equal(outcome.certainty, 'proof');
+    assert.deepEqual([...(outcome.bottleneck?.slots ?? [])], ['Mon#0']);
+    assert.equal(outcome.bottleneck?.meetings.length, 2);
+  });
+
+  test('refines from the exact answer when a soft rule is present', () => {
+    const outcome = solvePlanRouted({
+      ...oneToOne,
+      rules: [{ kind: 'avoid', meeting: 'a', weight: 1 }],
+    });
+
+    // 'a' must still happen — ana needs one meeting and only 'a' provides it —
+    // so the avoid rule cannot be satisfied. The point is the route taken.
+    assert.equal(outcome.scheduled, true);
+    assert.equal(outcome.method, 'exact+genetic');
+  });
+
+  test('searches when the plan leaves the matching class', () => {
+    const outcome = solvePlanRouted(richSpec);
+
+    assert.equal(outcome.scheduled, true);
+    assert.equal(outcome.method, 'genetic');
+    assert.equal(outcome.certainty, 'proof');
+  });
+
+  test('never reports a failed search as a proof', () => {
+    // Two people banned from sharing a day, but only one day exists. The plan
+    // is genuinely impossible, and it is outside the matching class — so the
+    // honest answer is "did not find one", not "none exists".
+    const outcome = solvePlanRouted(
+      {
+        slots: createDailySlots(['Mon'], 3),
+        needs: { ana: 1, bo: 1 },
+        meetings: [
+          { id: 'a', attendees: ['ana'] },
+          { id: 'b', attendees: ['bo'] },
+        ],
+        rules: [{ kind: 'not-same-day', people: ['ana', 'bo'] }],
+      },
+      { maxGenerations: 40, populationSize: 40 },
+    );
+
+    assert.equal(outcome.scheduled, false);
+    assert.equal(outcome.method, 'genetic');
+    assert.equal(
+      outcome.certainty,
+      'not-found',
+      'an unsolved search was reported as a proof',
+    );
+    assert.equal(outcome.bottleneck, undefined);
+  });
+
+  test('is deterministic for a given seed', () => {
+    assert.deepEqual(
+      solvePlanRouted(richSpec, { seed: 3 }).candidate,
+      solvePlanRouted(richSpec, { seed: 3 }).candidate,
     );
   });
 });

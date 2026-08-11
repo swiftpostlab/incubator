@@ -23,6 +23,8 @@
 
 import { hardConstraint, softConstraint } from '../constraints.ts';
 import { createAssignmentEncoding } from '../encodings.ts';
+import { maximumBipartiteMatching } from '../exact/bipartite-matching.ts';
+import { solve } from '../solver.ts';
 import type { Assignment } from '../encodings.ts';
 import type { Constraint, Problem } from '../types.ts';
 import type { Slot } from './meeting-scheduling.ts';
@@ -480,4 +482,157 @@ export const planIsExactlySolvable = (spec: MeetingPlanSpec): boolean => {
       spec.meetings.filter((meeting) => meeting.attendees.includes(person))
         .length === needed,
   );
+};
+
+/**
+ * Whether a negative answer is trustworthy.
+ *
+ * `proof` means no plan can exist — the exact solver said so, and that holds
+ * for every possible arrangement. `not-found` means the search gave up, which
+ * is a statement about the search and not about the problem. Conflating the two
+ * is the failure this type exists to prevent: a genetic search that returns
+ * nothing looks identical to an impossibility unless the caller is told which
+ * it was.
+ */
+export type PlanCertainty = 'proof' | 'not-found';
+
+export interface PlanBottleneck {
+  readonly meetings: readonly string[];
+  readonly slots: readonly string[];
+}
+
+export interface PlanOutcome {
+  readonly scheduled: boolean;
+  /** Which solver produced this. `exact` carries a guarantee; `genetic` does not. */
+  readonly method: 'exact' | 'exact+genetic' | 'genetic';
+  /**
+   * When `scheduled` is false, whether that is a proof or a failed search. When
+   * true, always `proof`: a returned plan is checked against every constraint,
+   * so it is valid by construction rather than by hope.
+   */
+  readonly certainty: PlanCertainty;
+  readonly candidate?: Assignment;
+  readonly softViolation?: number;
+  /** Present only for an exact failure: the meetings with nowhere left to go. */
+  readonly bottleneck?: PlanBottleneck;
+}
+
+export interface PlanOptions {
+  readonly seed?: number;
+  readonly populationSize?: number;
+  readonly maxGenerations?: number;
+  readonly localSearchSteps?: number;
+}
+
+/**
+ * Search defaults sized for the general case rather than the easy one.
+ *
+ * These are deliberately heavier than the library's own defaults. Plans with
+ * attendee sets and coupling rules are constrained enough that a small
+ * population rarely finds a feasible point at all, and local search is what
+ * closes the last few violations.
+ */
+export const defaultPlanOptions: Required<PlanOptions> = {
+  seed: 1,
+  populationSize: 200,
+  maxGenerations: 400,
+  localSearchSteps: 30,
+};
+
+const hasSoftRules = (spec: MeetingPlanSpec): boolean =>
+  (spec.rules ?? []).some((rule) => rule.kind === 'avoid');
+
+/**
+ * Solve a plan exactly, when it is one of the plans that still can be.
+ *
+ * Returns `undefined` when the plan left the matching class, so the caller
+ * knows to search instead rather than mistaking "not applicable" for "no".
+ */
+const solvePlanByMatching = (
+  spec: MeetingPlanSpec,
+): PlanOutcome | undefined => {
+  if (!planIsExactlySolvable(spec)) {
+    return undefined;
+  }
+
+  const index = buildIndex(spec);
+  const matching = maximumBipartiteMatching(
+    index.allowedFor.map((allowed) => allowed),
+    spec.slots.length,
+  );
+
+  if (!matching.complete) {
+    return {
+      scheduled: false,
+      method: 'exact',
+      certainty: 'proof',
+      bottleneck: matching.bottleneck && {
+        meetings: matching.bottleneck.leftNodes.map(
+          (meeting) => spec.meetings[meeting].id,
+        ),
+        slots: matching.bottleneck.rightNodes.map(
+          (slot) => spec.slots[slot].id,
+        ),
+      },
+    };
+  }
+
+  return {
+    scheduled: true,
+    method: 'exact',
+    certainty: 'proof',
+    candidate: [...matching.leftMatch],
+  };
+};
+
+/**
+ * Solve a plan, taking the exact route whenever the plan still allows one.
+ *
+ * The routing is not a caller decision. Whether a plan is bipartite matching is
+ * a property of the plan, fully determined by its own contents, and getting it
+ * wrong costs either a guarantee or a great deal of time.
+ */
+export const solvePlan = (
+  spec: MeetingPlanSpec,
+  options: PlanOptions = {},
+): PlanOutcome => {
+  validatePlanSpec(spec);
+
+  const settings = { ...defaultPlanOptions, ...options };
+  const exact = solvePlanByMatching(spec);
+
+  if (exact && !exact.scheduled) {
+    return exact;
+  }
+
+  if (exact && !hasSoftRules(spec)) {
+    return exact;
+  }
+
+  const refined = solve(createPlanProblem(spec), {
+    seed: settings.seed,
+    populationSize: settings.populationSize,
+    maxGenerations: settings.maxGenerations,
+    localSearchSteps: settings.localSearchSteps,
+    ...(exact?.candidate ? { initialCandidates: [exact.candidate] } : {}),
+  });
+
+  if (!refined.best.feasible) {
+    // An exact seed is feasible by construction, so reaching here with one in
+    // hand would mean the search replaced a valid plan with an invalid one.
+    // Hand back the seed rather than the regression.
+    if (exact?.candidate) {
+      return exact;
+    }
+
+    return { scheduled: false, method: 'genetic', certainty: 'not-found' };
+  }
+
+  return {
+    scheduled: true,
+    method: exact ? 'exact+genetic' : 'genetic',
+    certainty: 'proof',
+    candidate: refined.best.candidate,
+    softViolation: refined.best.softViolation,
+  };
 };
