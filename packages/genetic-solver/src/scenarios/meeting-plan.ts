@@ -56,7 +56,24 @@ export type MeetingRule =
       readonly kind: 'avoid';
       readonly meeting: string;
       readonly weight?: number;
-    };
+    }
+  /** Pull the plan onto as few distinct days as possible. */
+  | { readonly kind: 'compact-days'; readonly weight?: number }
+  /** Prefer earlier slots. */
+  | { readonly kind: 'earliness'; readonly weight?: number };
+
+/** Rules that express a preference rather than a requirement. */
+export type SoftMeetingRule = Extract<MeetingRule, { weight?: number }>;
+
+/**
+ * A type guard rather than a set lookup, so narrowing survives: only these
+ * rules carry a `weight`, and only these leave feasibility untouched — which is
+ * what lets a plan carrying them still take the exact route.
+ */
+const isSoftRule = (rule: MeetingRule): rule is SoftMeetingRule =>
+  rule.kind === 'avoid' ||
+  rule.kind === 'compact-days' ||
+  rule.kind === 'earliness';
 
 export interface MeetingPlanSpec {
   readonly slots: readonly Slot[];
@@ -192,18 +209,18 @@ export const validatePlanSpec = (spec: MeetingPlanSpec): void => {
       }
     }
 
-    if (rule.kind === 'avoid') {
-      if (!meetingIds.has(rule.meeting)) {
-        throw new RangeError(
-          `Avoid rule references unknown meeting '${rule.meeting}'`,
-        );
-      }
+    if (rule.kind === 'avoid' && !meetingIds.has(rule.meeting)) {
+      throw new RangeError(
+        `Avoid rule references unknown meeting '${rule.meeting}'`,
+      );
+    }
 
+    if (isSoftRule(rule)) {
       const { weight = defaultAvoidWeight } = rule;
 
       if (!Number.isFinite(weight) || weight < 0) {
         throw new RangeError(
-          `Avoid rule for '${rule.meeting}' needs a finite weight >= 0`,
+          `A '${rule.kind}' rule needs a finite weight >= 0, received ${String(weight)}`,
         );
       }
     }
@@ -314,6 +331,48 @@ const buildRuleConstraints = (
 
           return violation;
         },
+      );
+    }
+
+    if (rule.kind === 'compact-days') {
+      return softConstraint<Assignment>(
+        `compact-days:${String(ruleIndex)}`,
+        (candidate) => {
+          const days = new Set(
+            placements(candidate, index).map(
+              (placement) => index.dayOrdinalOf[placement.slot],
+            ),
+          );
+
+          return Math.max(0, days.size - 1);
+        },
+        rule.weight ?? defaultAvoidWeight,
+      );
+    }
+
+    if (rule.kind === 'earliness') {
+      const latestIndex = Math.max(...spec.slots.map((slot) => slot.index));
+
+      return softConstraint<Assignment>(
+        `earliness:${String(ruleIndex)}`,
+        (candidate) => {
+          const placed = placements(candidate, index);
+
+          if (latestIndex === 0 || placed.length === 0) {
+            return 0;
+          }
+
+          // Normalised to [0, 1] per meeting so the weight means the same thing
+          // regardless of how many slots the caller defined.
+          const total = placed.reduce(
+            (sum, placement) =>
+              sum + spec.slots[placement.slot].index / latestIndex,
+            0,
+          );
+
+          return total / placed.length;
+        },
+        rule.weight ?? defaultAvoidWeight,
       );
     }
 
@@ -473,7 +532,7 @@ export const planIsExactlySolvable = (spec: MeetingPlanSpec): boolean => {
     return false;
   }
 
-  if ((spec.rules ?? []).some((rule) => rule.kind !== 'avoid')) {
+  if ((spec.rules ?? []).some((rule) => !isSoftRule(rule))) {
     return false;
   }
 
@@ -540,7 +599,7 @@ export const defaultPlanOptions: Required<PlanOptions> = {
 };
 
 const hasSoftRules = (spec: MeetingPlanSpec): boolean =>
-  (spec.rules ?? []).some((rule) => rule.kind === 'avoid');
+  (spec.rules ?? []).some((rule) => isSoftRule(rule) && (rule.weight ?? 1) > 0);
 
 /**
  * Solve a plan exactly, when it is one of the plans that still can be.

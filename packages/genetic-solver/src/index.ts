@@ -30,7 +30,28 @@ export {
   run,
   solveRequest,
 } from './scenarios/meeting-request.ts';
-export type { RunOptions, RunOutcome } from './scenarios/meeting-request.ts';
+export type { RequestResult, RunOptions } from './scenarios/meeting-request.ts';
+
+export {
+  createPlanProblem,
+  defaultPlanOptions,
+  describePlan,
+  planIsExactlySolvable,
+  solvePlan,
+  validatePlanSpec,
+} from './scenarios/meeting-plan.ts';
+export type {
+  MeetingPlanSpec,
+  MeetingRule,
+  PlanBottleneck,
+  PlanCertainty,
+  PlanDescription,
+  PlanOptions,
+  PlanOutcome,
+  PlannedMeeting,
+  PlannedResult,
+  SoftMeetingRule,
+} from './scenarios/meeting-plan.ts';
 export type {
   ExactSchedule,
   MeetingBottleneck,

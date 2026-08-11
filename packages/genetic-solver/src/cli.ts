@@ -14,14 +14,12 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
-import { describeSchedule } from './scenarios/meeting-scheduling.ts';
 import {
   InputError,
   defaultRunOptions,
   solveRequest,
 } from './scenarios/meeting-request.ts';
-import type { RunOutcome } from './scenarios/meeting-request.ts';
-import type { MeetingProblemSpec } from './scenarios/meeting-scheduling.ts';
+import type { RequestResult } from './scenarios/meeting-request.ts';
 
 /**
  * Exit codes are distinct so a script can tell the three outcomes apart:
@@ -39,12 +37,12 @@ Reads a scheduling spec as JSON, from a file or stdin.
 
 Options:
   --seed <n>            RNG seed for the genetic pass (default 1)
-  --local-search <n>    Hill-climbing steps per candidate (default 8)
-  --generations <n>     Generation cap for the genetic pass (default 200)
+  --local-search <n>    Hill-climbing steps per candidate (default 30)
+  --generations <n>     Generation cap for the genetic pass (default 400)
   --json                Emit JSON instead of a human-readable schedule
   --help                Show this message
 
-Spec format:
+Roster format — one meeting each, and the exact solver applies:
   {
     "days": ["mon", "tue"],          // with slotsPerDay, builds the grid
     "slotsPerDay": 3,
@@ -54,53 +52,94 @@ Spec format:
     "preferences": { "compactDaysWeight": 1, "earlinessWeight": 0 }
   }
 
+Plan format — attendee sets, several meetings per person, and rules:
+  {
+    "days": ["mon", "tue"],
+    "slotsPerDay": 3,
+    "needs": { "ana": 1, "bo": 2 },  // meetings each person must end up with
+    "meetings": [
+      { "id": "ana-solo", "attendees": ["ana"] },
+      { "id": "joint", "attendees": ["ana", "bo"], "allowedSlotIds": ["mon#1"] }
+    ],
+    "rules": [
+      { "kind": "spacing", "person": "bo", "minDays": 2 },
+      { "kind": "not-same-day", "people": ["ana", "bo"] },
+      { "kind": "avoid", "meeting": "joint", "weight": 5 }
+    ]
+  }
+
+A meeting with no "allowedSlotIds" may use any slot. Rules that relate two
+meetings leave the exact solver behind, so a failure then reports that no plan
+was found rather than claiming none exists.
+
 Supply "slots" explicitly instead of "days"/"slotsPerDay" for an irregular grid.
 
-Exit codes: ${String(exitCodes.scheduled)} scheduled, ${String(exitCodes.infeasible)} no schedule exists, ${String(exitCodes.badInput)} bad input.
+Exit codes: ${String(exitCodes.scheduled)} scheduled, ${String(exitCodes.infeasible)} no plan produced, ${String(exitCodes.badInput)} bad input.
 `;
 
 /** "1 slot" rather than "1 slots" — the bottleneck message reads as a sentence. */
 const count = (value: number, singular: string, plural: string): string =>
   `${String(value)} ${value === 1 ? singular : plural}`;
 
-const formatOutcome = (
-  spec: MeetingProblemSpec,
-  outcome: RunOutcome,
-): string => {
-  if (!outcome.scheduled) {
-    const lines = ['No schedule exists. This is a proof, not a failed search.'];
-
-    if (outcome.bottleneck) {
-      const { people, slots } = outcome.bottleneck;
-      lines.push(
-        '',
-        `${count(people.length, 'person', 'people')} can only attend ${count(slots.length, 'slot', 'slots')}:`,
-        `  people: ${people.join(', ')}`,
-        `  slots:  ${slots.join(', ')}`,
-        '',
-        "Widen somebody's availability or add a slot they can attend.",
-      );
-    }
-
-    return lines.join('\n');
+/**
+ * A failure is worth different words depending on whether it is a proof.
+ *
+ * Printing "no schedule exists" after a search that merely gave up would be the
+ * most damaging thing this tool could say, so the two cases never share wording.
+ */
+const formatFailure = (outcome: RequestResult['outcome']): string => {
+  if (outcome.certainty === 'not-found') {
+    return [
+      'No plan found. This is not a proof: the search gave up, and one may',
+      'still exist. Loosen a rule, or retry with --generations raised.',
+    ].join('\n');
   }
 
-  const schedule = describeSchedule(spec, outcome.assignment ?? []);
+  const lines = ['No plan exists. This is a proof, not a failed search.'];
+
+  if (outcome.bottleneck) {
+    const { meetings, slots } = outcome.bottleneck;
+    lines.push(
+      '',
+      `${count(meetings.length, 'meeting', 'meetings')} can only use ${count(slots.length, 'slot', 'slots')}:`,
+      `  meetings: ${meetings.join(', ')}`,
+      `  slots:    ${slots.join(', ')}`,
+      '',
+      "Widen somebody's availability or add a slot they can attend.",
+    );
+  }
+
+  return lines.join('\n');
+};
+
+const formatOutcome = (result: RequestResult): string => {
+  const { outcome, plan } = result;
+
+  if (!outcome.scheduled || !plan) {
+    return formatFailure(outcome);
+  }
+
   const width = Math.max(
-    ...schedule.meetings.map((meeting) => meeting.person.id.length),
+    ...plan.scheduled.map((entry) => entry.meeting.attendees.join(', ').length),
   );
 
-  const rows = [...schedule.meetings]
-    .sort((left, right) => left.slot.index - right.slot.index)
-    .map(
-      (meeting) => `  ${meeting.person.id.padEnd(width)}  ${meeting.slot.id}`,
-    );
+  const rows = plan.scheduled.map(
+    (entry) =>
+      `  ${entry.meeting.attendees.join(', ').padEnd(width)}  ${entry.slot.id}`,
+  );
 
   const summary = [
-    `Scheduled ${count(schedule.meetings.length, 'meeting', 'meetings')} across ${count(schedule.days.length, 'day', 'days')} via ${outcome.method}.`,
+    `Scheduled ${count(plan.scheduled.length, 'meeting', 'meetings')} across ${count(plan.days.length, 'day', 'days')} via ${outcome.method}.`,
     '',
     ...rows,
   ];
+
+  if (plan.dropped.length > 0) {
+    summary.push(
+      '',
+      `Not scheduled: ${plan.dropped.map((meeting) => meeting.id).join(', ')}`,
+    );
+  }
 
   if (outcome.softViolation !== undefined) {
     summary.push('', `Preference cost: ${outcome.softViolation.toFixed(4)}`);
@@ -161,7 +200,7 @@ export const main = (argv: readonly string[]): number => {
 
   try {
     const source = readInput(parsed.positionals[0]);
-    const { spec, outcome } = solveRequest(source, {
+    const result = solveRequest(source, {
       seed: numeric('seed', parsed.values.seed, defaultRunOptions.seed),
       localSearchSteps: numeric(
         'local-search',
@@ -177,11 +216,13 @@ export const main = (argv: readonly string[]): number => {
 
     process.stdout.write(
       parsed.values.json ?
-        `${JSON.stringify(outcome, null, 2)}\n`
-      : `${formatOutcome(spec, outcome)}\n`,
+        `${JSON.stringify(result.outcome, null, 2)}\n`
+      : `${formatOutcome(result)}\n`,
     );
 
-    return outcome.scheduled ? exitCodes.scheduled : exitCodes.infeasible;
+    return result.outcome.scheduled ?
+        exitCodes.scheduled
+      : exitCodes.infeasible;
   } catch (error) {
     // RangeError is what the library throws for a spec that cannot work, so it
     // is the caller's problem, not a crash.

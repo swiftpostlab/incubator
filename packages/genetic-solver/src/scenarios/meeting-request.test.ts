@@ -1,16 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { InputError, parseSpec, run } from './meeting-request.ts';
-import type { MeetingProblemSpec } from './meeting-scheduling.ts';
+import { InputError, parseSpec, run, solveRequest } from './meeting-request.ts';
 
-const defaultOptions = {
-  seed: 1,
-  localSearchSteps: 8,
-  maxGenerations: 200,
-} as const;
-
-const feasibleSpec = {
+const rosterSpec = {
   days: ['mon', 'tue'],
   slotsPerDay: 3,
   people: [
@@ -20,6 +13,9 @@ const feasibleSpec = {
   ],
 };
 
+const scheduledIds = (result: ReturnType<typeof run>) =>
+  (result.plan?.scheduled ?? []).map((entry) => entry.meeting.id);
+
 describe('parseSpec shape validation', () => {
   test('rejects anything that is not an object', () => {
     assert.throws(() => parseSpec([]), InputError);
@@ -27,11 +23,14 @@ describe('parseSpec shape validation', () => {
     assert.throws(() => parseSpec(null), InputError);
   });
 
-  test('rejects a missing or malformed people array', () => {
+  test('rejects a spec with neither people nor meetings', () => {
     assert.throws(
       () => parseSpec({ days: ['mon'], slotsPerDay: 2 }),
       InputError,
     );
+  });
+
+  test('rejects a malformed person', () => {
     assert.throws(
       () => parseSpec({ days: ['mon'], slotsPerDay: 2, people: [{}] }),
       InputError,
@@ -52,146 +51,200 @@ describe('parseSpec shape validation', () => {
   });
 
   test('builds the slot grid from days and slotsPerDay', () => {
-    const spec = parseSpec(feasibleSpec);
+    const spec = parseSpec(rosterSpec);
 
-    assert.equal(spec.slots.length, 6);
     assert.deepEqual(
       spec.slots.map((slot) => slot.id),
       ['mon#0', 'mon#1', 'mon#2', 'tue#0', 'tue#1', 'tue#2'],
     );
   });
 
-  test('passes an explicit slot list through untouched', () => {
-    const slots = [{ id: 'only', day: 'mon', index: 0 }];
-    const spec = parseSpec({
-      slots,
-      people: [{ id: 'ana', availableSlotIds: ['only'] }],
-    });
-
-    assert.deepEqual(spec.slots, slots);
-  });
-
-  test('leaves semantic errors to the scenario, so the rules live in one place', () => {
-    // Shape is fine here; the slot id is not one the grid defines. parseSpec
-    // must not catch that itself, or the two validators can drift apart.
+  test('leaves semantic errors to the plan, so the rules live in one place', () => {
+    // Shape is fine; the slot id is not one the grid defines. parseSpec must
+    // not catch that itself, or the two validators can drift apart.
     const spec = parseSpec({
       days: ['mon'],
       slotsPerDay: 2,
       people: [{ id: 'ana', availableSlotIds: ['nope#9'] }],
     });
 
-    assert.throws(() => run(spec, defaultOptions), RangeError);
+    assert.throws(() => run(spec), RangeError);
   });
 });
 
-describe('run solver selection', () => {
-  test('uses the exact solver alone when there are no preferences', () => {
-    const outcome = run(parseSpec(feasibleSpec), defaultOptions);
+describe('parseSpec on the roster shape', () => {
+  test('turns each person into a one-attendee meeting needing one slot', () => {
+    const spec = parseSpec(rosterSpec);
 
-    assert.equal(outcome.scheduled, true);
-    assert.equal(outcome.method, 'exact');
-    assert.equal(outcome.softViolation, undefined);
-    assert.deepEqual(outcome.unplaced, []);
-    assert.equal(outcome.assignment?.length, 3);
+    assert.equal(spec.meetings.length, 3);
+    assert.deepEqual(
+      spec.meetings.map((meeting) => meeting.attendees),
+      [['ana'], ['bo'], ['cy']],
+    );
+    assert.deepEqual(spec.needs, { ana: 1, bo: 1, cy: 1 });
   });
 
-  test('treats zero-weight preferences as no preferences', () => {
-    const outcome = run(
-      parseSpec({
-        ...feasibleSpec,
-        preferences: { compactDaysWeight: 0, earlinessWeight: 0 },
-      }),
-      defaultOptions,
-    );
+  test('converts preferences into soft rules, and omits them at zero', () => {
+    const withPreferences = parseSpec({
+      ...rosterSpec,
+      preferences: { compactDaysWeight: 2, earlinessWeight: 0 },
+    });
 
-    assert.equal(outcome.method, 'exact');
+    assert.deepEqual(withPreferences.rules, [
+      { kind: 'compact-days', weight: 2 },
+    ]);
+
+    assert.deepEqual(parseSpec(rosterSpec).rules, []);
+  });
+});
+
+describe('parseSpec on the plan shape', () => {
+  const planSpec = {
+    days: ['mon', 'tue'],
+    slotsPerDay: 3,
+    needs: { ana: 1, bo: 1 },
+    meetings: [
+      { id: 'joint', attendees: ['ana', 'bo'], allowedSlotIds: ['mon#1'] },
+    ],
+  };
+
+  test('keeps attendees, needs, and rules as given', () => {
+    const spec = parseSpec({
+      ...planSpec,
+      rules: [{ kind: 'not-same-day', people: ['ana', 'bo'] }],
+    });
+
+    assert.deepEqual(spec.meetings[0].attendees, ['ana', 'bo']);
+    assert.deepEqual(spec.needs, { ana: 1, bo: 1 });
+    assert.equal(spec.rules?.length, 1);
+  });
+
+  test('rejects a plan without needs', () => {
+    const { needs: _needs, ...withoutNeeds } = planSpec;
+    assert.throws(() => parseSpec(withoutNeeds), InputError);
+  });
+
+  test('rejects a malformed meeting', () => {
+    assert.throws(
+      () => parseSpec({ ...planSpec, meetings: [{ id: 'a' }] }),
+      InputError,
+    );
+    assert.throws(
+      () =>
+        parseSpec({
+          ...planSpec,
+          meetings: [{ id: 'a', attendees: [7] }],
+        }),
+      InputError,
+    );
+  });
+
+  test('rejects non-array rules', () => {
+    assert.throws(() => parseSpec({ ...planSpec, rules: 'none' }), InputError);
+  });
+});
+
+describe('run routing', () => {
+  test('takes the exact route for a plain roster', () => {
+    const result = run(parseSpec(rosterSpec));
+
+    assert.equal(result.outcome.scheduled, true);
+    assert.equal(result.outcome.method, 'exact');
+    assert.equal(result.outcome.certainty, 'proof');
+    assert.equal(result.plan?.scheduled.length, 3);
+    assert.deepEqual(result.plan?.dropped, []);
   });
 
   test('adds the genetic pass once a preference carries weight', () => {
-    const outcome = run(
-      parseSpec({ ...feasibleSpec, preferences: { compactDaysWeight: 1 } }),
-      defaultOptions,
+    const result = run(
+      parseSpec({ ...rosterSpec, preferences: { compactDaysWeight: 1 } }),
     );
 
-    assert.equal(outcome.scheduled, true);
-    assert.equal(outcome.method, 'exact+genetic');
-    assert.ok(outcome.softViolation !== undefined);
+    assert.equal(result.outcome.scheduled, true);
+    assert.equal(result.outcome.method, 'exact+genetic');
+    assert.ok(result.outcome.softViolation !== undefined);
   });
 
-  test('never returns an infeasible schedule from the genetic pass', () => {
-    // The seed is already feasible, so refinement must not downgrade it. This
-    // guards the one failure that would be worst: a valid schedule replaced by
-    // an invalid one that still reports success.
-    const outcome = run(
+  test('treats zero-weight preferences as no preferences', () => {
+    const result = run(
       parseSpec({
-        ...feasibleSpec,
-        preferences: { compactDaysWeight: 3, earlinessWeight: 2 },
+        ...rosterSpec,
+        preferences: { compactDaysWeight: 0, earlinessWeight: 0 },
       }),
-      defaultOptions,
     );
 
-    assert.equal(outcome.scheduled, true);
+    assert.equal(result.outcome.method, 'exact');
+  });
 
-    const slots = outcome.assignment ?? [];
-    assert.equal(new Set(slots).size, slots.length, 'a slot was double booked');
+  test('proves a roster impossible rather than searching for it', () => {
+    const result = run(
+      parseSpec({
+        days: ['mon'],
+        slotsPerDay: 3,
+        people: [
+          { id: 'ana', availableSlotIds: ['mon#0'] },
+          { id: 'bo', availableSlotIds: ['mon#0'] },
+          { id: 'cy', availableSlotIds: ['mon#0'] },
+        ],
+      }),
+    );
+
+    assert.equal(result.outcome.scheduled, false);
+    assert.equal(result.outcome.method, 'exact');
+    assert.equal(result.outcome.certainty, 'proof');
+    assert.deepEqual([...(result.outcome.bottleneck?.slots ?? [])], ['mon#0']);
+  });
+
+  test('never double-books a slot', () => {
+    const result = run(parseSpec(rosterSpec));
+    const used = (result.plan?.scheduled ?? []).map((entry) => entry.slot.id);
+
+    assert.equal(new Set(used).size, used.length);
   });
 
   test('is deterministic for a given seed', () => {
     const spec = parseSpec({
-      ...feasibleSpec,
+      ...rosterSpec,
       preferences: { compactDaysWeight: 1 },
     });
 
     assert.deepEqual(
-      run(spec, defaultOptions).assignment,
-      run(spec, defaultOptions).assignment,
+      run(spec, { seed: 3 }).outcome.candidate,
+      run(spec, { seed: 3 }).outcome.candidate,
     );
   });
 });
 
-describe('run on an impossible request', () => {
-  const impossible: MeetingProblemSpec = parseSpec({
-    days: ['mon'],
-    slotsPerDay: 3,
-    people: [
-      { id: 'ana', availableSlotIds: ['mon#0'] },
-      { id: 'bo', availableSlotIds: ['mon#0'] },
-      { id: 'cy', availableSlotIds: ['mon#0'] },
-    ],
+describe('solveRequest', () => {
+  test('parses and solves raw text in one step', () => {
+    const result = solveRequest(JSON.stringify(rosterSpec));
+
+    assert.equal(result.outcome.scheduled, true);
+    assert.equal(scheduledIds(result).length, 3);
   });
 
-  test('reports failure without falling back to the search', () => {
-    const outcome = run(impossible, defaultOptions);
-
-    assert.equal(outcome.scheduled, false);
-    assert.equal(outcome.method, 'exact');
-    assert.equal(outcome.assignment, undefined);
+  test('reports invalid JSON as an InputError', () => {
+    assert.throws(() => solveRequest('not json'), InputError);
   });
 
-  test('names the people who could not be placed', () => {
-    const outcome = run(impossible, defaultOptions);
-
-    assert.equal(outcome.unplaced.length, 2);
-    outcome.unplaced.forEach((id) => {
-      assert.ok(['ana', 'bo', 'cy'].includes(id));
-    });
-  });
-
-  test('reports a bottleneck with more people than slots', () => {
-    const { bottleneck } = run(impossible, defaultOptions);
-
-    assert.ok(bottleneck);
-    assert.ok(bottleneck.people.length > bottleneck.slots.length);
-    assert.deepEqual([...bottleneck.slots], ['mon#0']);
-  });
-
-  test('still reports failure when preferences are set', () => {
-    const outcome = run(
-      { ...impossible, preferences: { compactDaysWeight: 1 } },
-      defaultOptions,
+  test('solves a plan with a joint meeting and an avoid rule', () => {
+    const result = solveRequest(
+      JSON.stringify({
+        days: ['mon', 'tue'],
+        slotsPerDay: 3,
+        needs: { ana: 1, bo: 1 },
+        meetings: [
+          { id: 'ana-solo', attendees: ['ana'] },
+          { id: 'bo-solo', attendees: ['bo'] },
+          { id: 'joint', attendees: ['ana', 'bo'], allowedSlotIds: ['mon#1'] },
+        ],
+        rules: [{ kind: 'avoid', meeting: 'joint', weight: 5 }],
+      }),
     );
 
-    assert.equal(outcome.scheduled, false);
-    assert.equal(outcome.method, 'exact');
+    assert.equal(result.outcome.scheduled, true);
+    // Both solo meetings satisfy the needs without paying the avoid penalty.
+    assert.ok(!scheduledIds(result).includes('joint'));
+    assert.equal(result.outcome.softViolation, 0);
   });
 });
