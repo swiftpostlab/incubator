@@ -11,12 +11,17 @@ import { InputError, solveRequest } from '@swiftpost/genetic-solver';
 import type { RequestResult } from '@swiftpost/genetic-solver';
 
 /**
- * The examples are the documentation, which is why there are two.
+ * The examples are the documentation, which is why there are three.
  *
  * The roster is the short form and the one that keeps the proof. The plan shows
  * everything the roster cannot say — a two-person meeting, someone needing two
  * meetings, and rules relating them — and is deliberately the same request the
  * roster could not express, so the difference is legible by reading both.
+ *
+ * Availability is the third because it is orthogonal to that choice: it works
+ * with either shape, and its whole point is what it replaces. Read against the
+ * roster's hand-listed slot ids, the same request is four lines instead of one
+ * per person per slot, and it survives the grid changing.
  */
 const rosterExample = `{
   "days": ["mon", "tue"],
@@ -47,6 +52,24 @@ const planExample = `{
     { "kind": "not-same-day", "people": ["ana", "bo"] },
     { "kind": "avoid", "meeting": "bo-zoe-lunch", "weight": 5 }
   ]
+}`;
+
+const availabilityExample = `{
+  "days": ["mon", "tue", "wed", "thu", "fri"],
+  "slotsPerDay": 3,
+  "people": [
+    { "id": "sally" },
+    { "id": "bob" },
+    { "id": "floyd" },
+    { "id": "paul" }
+  ],
+  "availability": [
+    { "kind": "busy", "person": "sally", "days": ["tue"] },
+    { "kind": "busy", "person": "floyd", "slotOfDay": [1] },
+    { "kind": "free", "person": "paul", "days": ["wed"] },
+    { "kind": "busy", "person": "paul", "days": ["wed"], "slotOfDay": [1] }
+  ],
+  "preferences": { "compactDaysWeight": 1 }
 }`;
 
 /** "1 slot" rather than "1 slots" — the bottleneck line reads as a sentence. */
@@ -94,7 +117,9 @@ const MeetingSchedulerClient: React.FC = () => {
             unavailable. A roster — one meeting each — is solved exactly: the
             plan is guaranteed valid, and a failure is a proof that none exists.
             A plan with joint meetings or rules relating people is searched
-            instead, and then a failure only means none was found.
+            instead, and then a failure only means none was found. Either shape
+            can state when people are busy as rules — by day, by position in the
+            day, or both — rather than listing the slots that are left.
           </Text>
         </Stack>
 
@@ -115,6 +140,9 @@ const MeetingSchedulerClient: React.FC = () => {
           </Button>
           <Button onClick={loadExample(rosterExample)}>Roster example</Button>
           <Button onClick={loadExample(planExample)}>Plan example</Button>
+          <Button onClick={loadExample(availabilityExample)}>
+            Availability example
+          </Button>
         </Stack>
 
         {error !== undefined && (
