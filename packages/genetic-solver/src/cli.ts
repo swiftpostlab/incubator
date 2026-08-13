@@ -60,14 +60,32 @@ Plan format — attendee sets, several meetings per person, and rules:
     "needs": { "ana": 1, "bo": 2 },  // meetings each person must end up with
     "meetings": [
       { "id": "ana-solo", "attendees": ["ana"] },
-      { "id": "joint", "attendees": ["ana", "bo"], "allowedSlotIds": ["mon#1"] }
+      { "id": "joint", "attendees": ["ana", "bo"], "allowedSlotOfDay": [1] },
+      { "id": "prep", "attendees": ["bo"], "countsTowardNeeds": false }
     ],
     "rules": [
       { "kind": "spacing", "person": "bo", "minDays": 2 },
       { "kind": "not-same-day", "people": ["ana", "bo"] },
-      { "kind": "avoid", "meeting": "joint", "weight": 5 }
+      { "kind": "avoid", "meeting": "joint", "weight": 5 },
+      { "kind": "prefer", "person": "ana", "days": ["mon"], "weight": 2 },
+      { "kind": "together", "meetings": ["prep", "joint"] },
+      { "kind": "consecutive", "first": "prep", "second": "joint" }
     ]
   }
+
+  A meeting takes the availability selectors under its own names —
+  "allowedDays", "allowedSlotOfDay", "allowedSlotIds", ANDed together — for a
+  limit that belongs to the meeting rather than to a person: "the joint lunch,
+  whoever attends". "countsTowardNeeds": false makes it occupy a slot and block
+  its attendees' time without counting towards anybody's "needs".
+
+  "prefer" is the soft twin of availability, taking the same selectors: each of
+  that person's meetings placed outside the selection costs "weight", so a
+  preference bends the plan instead of breaking it. "together" makes a set of
+  meetings all-or-nothing, which is the only way to say a meeting exists because
+  another was chosen. "consecutive" puts "second" exactly "gap" slots after
+  "first" (default 1) on the same day, and says nothing about whether either
+  happens — pair it with "together" for "both, adjacent, in this order".
 
 Availability — works with either format, so nobody writes out a complement:
   "availability": [
@@ -83,9 +101,14 @@ Availability — works with either format, so nobody writes out a complement:
   Wednesday. "free" keeps only what it matches, "busy" removes it, and "busy"
   wins on overlap, so order never matters. Use "slotIds" for anything else.
 
-A meeting with no "allowedSlotIds" may use any slot. Rules that relate two
-meetings leave the exact solver behind, so a failure then reports that no plan
-was found rather than claiming none exists.
+A meeting with no slot limit at all may use any slot.
+
+What costs the proof: "spacing", "not-same-day", "together", "consecutive", and
+any meeting with "countsTowardNeeds": false. Each of them either relates two
+meetings or makes one optional, which is what the exact solver scores
+independently, so a failure then reports that no plan was found rather than
+claiming none exists. The preference rules — "avoid", "prefer", "compact-days",
+"earliness" — do not affect feasibility and keep the exact route.
 
 Supply "slots" explicitly instead of "days"/"slotsPerDay" for an irregular grid.
 
