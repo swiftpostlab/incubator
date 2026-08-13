@@ -806,6 +806,111 @@ describe('coupling two meetings with together and consecutive', () => {
   });
 });
 
+/**
+ * The rest of John's case: cooking takes a slot but is not a meeting John owes
+ * anyone. With `needs` counting it, john: 1 drops the prep and john: 2 makes a
+ * home dinner compulsory — the conditional thing the plan is trying to express
+ * becomes unconditional either way.
+ */
+describe('a meeting that occupies time without counting towards needs', () => {
+  const oneDay = createDailySlots(['mon'], 3);
+
+  const johnsEvening: MeetingPlanSpec = {
+    slots: oneDay,
+    needs: { john: 1, ana: 1 },
+    meetings: [
+      { id: 'prep', attendees: ['john'], countsTowardNeeds: false },
+      { id: 'dinner-home', attendees: ['john'] },
+      { id: 'dinner-out', attendees: ['john'] },
+      { id: 'ana', attendees: ['ana'] },
+    ],
+    rules: [
+      { kind: 'together', meetings: ['prep', 'dinner-home'] },
+      { kind: 'consecutive', first: 'prep', second: 'dinner-home' },
+      { kind: 'avoid', meeting: 'dinner-out', weight: 2 },
+    ],
+  };
+
+  const solved = (spec: MeetingPlanSpec) => {
+    const outcome = solvePlanRouted(spec, { seed: 5 });
+
+    assert.equal(outcome.scheduled, true);
+
+    return describePlan(spec, outcome.candidate ?? []).scheduled;
+  };
+
+  test('lets the meal happen at home without inflating what John needs', () => {
+    const scheduled = solved(johnsEvening);
+    const byId = new Map(
+      scheduled.map((entry) => [entry.meeting.id, entry.slot] as const),
+    );
+
+    // Three meetings placed for two people who need one each: prep is the
+    // third, and it is free precisely because it counts for nobody.
+    assert.equal(scheduled.length, 3);
+    assert.equal(byId.has('dinner-out'), false);
+
+    const prep = byId.get('prep');
+    const meal = byId.get('dinner-home');
+
+    assert.ok(prep && meal);
+    assert.equal(meal.index - prep.index, 1);
+  });
+
+  test('still occupies its slot, so nobody else may use it', () => {
+    const slotIdsUsed = solved(johnsEvening).map((entry) => entry.slot.id);
+
+    assert.equal(new Set(slotIdsUsed).size, slotIdsUsed.length);
+  });
+
+  test('still blocks its attendee from being in two places at once', () => {
+    // john's own meetings and the prep all belong to john, so the three slots
+    // of the day are exactly consumed and ana has nowhere left to go.
+    const outcome = solvePlanRouted(
+      {
+        ...johnsEvening,
+        slots: createDailySlots(['mon'], 2),
+        meetings: johnsEvening.meetings.filter(
+          (meeting) => meeting.id !== 'dinner-out',
+        ),
+        rules: (johnsEvening.rules ?? []).filter(
+          (rule) => rule.kind !== 'avoid',
+        ),
+      },
+      { seed: 5, populationSize: 40, maxGenerations: 40 },
+    );
+
+    assert.equal(outcome.scheduled, false);
+    assert.equal(outcome.certainty, 'not-found');
+  });
+
+  test('does not count as one of the meetings a person could be given', () => {
+    assert.throws(() => {
+      validatePlanSpec({
+        slots: oneDay,
+        needs: { john: 1 },
+        meetings: [
+          { id: 'prep', attendees: ['john'], countsTowardNeeds: false },
+        ],
+      });
+    }, RangeError);
+  });
+
+  test('gives up the exact route, since an optional meeting may be dropped', () => {
+    assert.equal(
+      planIsExactlySolvable({
+        slots: oneDay,
+        needs: { john: 1 },
+        meetings: [
+          { id: 'prep', attendees: ['john'], countsTowardNeeds: false },
+          { id: 'dinner-home', attendees: ['john'] },
+        ],
+      }),
+      false,
+    );
+  });
+});
+
 describe('describePlan', () => {
   test('reports scheduled meetings in slot order and names the dropped ones', () => {
     const spec: MeetingPlanSpec = {

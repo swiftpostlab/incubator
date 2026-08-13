@@ -553,6 +553,13 @@ const parsePlan = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
         );
       }
 
+      if (
+        meeting.countsTowardNeeds !== undefined &&
+        typeof meeting.countsTowardNeeds !== 'boolean'
+      ) {
+        throw new InputError(`${where} "countsTowardNeeds" must be a boolean`);
+      }
+
       const { allowedDays, allowedSlotOfDay, ...plain } = meeting;
       const selector = parseSelector(
         {

@@ -36,6 +36,16 @@ export interface PlannedMeeting {
   readonly attendees: readonly string[];
   /** Slot ids it may occupy. Defaults to every slot. */
   readonly allowedSlotIds?: readonly string[];
+  /**
+   * Whether attending this satisfies part of what its attendees need. Default
+   * true.
+   *
+   * False makes it occupancy rather than a meeting: it still fills a slot and
+   * still keeps its attendees from being in two places at once, but it does not
+   * count towards `needs`. Cooking the dinner is the case — it takes John's
+   * time and is not one of the meetings John owes anyone.
+   */
+  readonly countsTowardNeeds?: boolean;
 }
 
 /**
@@ -144,6 +154,10 @@ export interface PlanDescription {
 
 const defaultAvoidWeight = 1;
 
+/** Meetings count towards `needs` unless they say otherwise. */
+const countsTowardNeeds = (meeting: PlannedMeeting): boolean =>
+  meeting.countsTowardNeeds ?? true;
+
 export const validatePlanSpec = (spec: MeetingPlanSpec): void => {
   if (spec.slots.length === 0) {
     throw new RangeError('A meeting plan needs at least one slot');
@@ -212,8 +226,9 @@ export const validatePlanSpec = (spec: MeetingPlanSpec): void => {
       );
     }
 
-    const available = spec.meetings.filter((meeting) =>
-      meeting.attendees.includes(person),
+    const available = spec.meetings.filter(
+      (meeting) =>
+        countsTowardNeeds(meeting) && meeting.attendees.includes(person),
     ).length;
 
     if (available < count) {
@@ -583,7 +598,13 @@ export const createPlanProblem = (
     const placed = new Map<string, number>();
 
     for (const placement of placements(candidate, index)) {
-      for (const attendee of spec.meetings[placement.meeting].attendees) {
+      const meeting = spec.meetings[placement.meeting];
+
+      if (!countsTowardNeeds(meeting)) {
+        continue;
+      }
+
+      for (const attendee of meeting.attendees) {
         placed.set(attendee, (placed.get(attendee) ?? 0) + 1);
       }
     }
@@ -689,12 +710,17 @@ export const describePlan = (
  * Whether this plan is still bipartite matching, and so provable rather than
  * merely searchable.
  *
- * All four conditions matter. Multi-attendee meetings and capacity above one
+ * All five conditions matter. Multi-attendee meetings and capacity above one
  * break the one-to-one structure; a person with more declared meetings than
  * they need makes *which* meetings happen a decision, which matching cannot
  * make; and a hard rule relating two meetings is exactly what matching scores
  * independently. Soft rules are fine — they do not affect feasibility, so the
  * exact answer stays a valid starting point for the search.
+ *
+ * A meeting outside `needs` is ruled out for a subtler reason: matching places
+ * every meeting or reports failure, but such a meeting is *optional*, so a plan
+ * may well exist that simply drops it. Taking the matching's failure as a proof
+ * would be claiming impossibility on the strength of a plan nobody required.
  */
 export const planIsExactlySolvable = (spec: MeetingPlanSpec): boolean => {
   validatePlanSpec(spec);
@@ -704,6 +730,10 @@ export const planIsExactlySolvable = (spec: MeetingPlanSpec): boolean => {
   }
 
   if (spec.meetings.some((meeting) => meeting.attendees.length !== 1)) {
+    return false;
+  }
+
+  if (spec.meetings.some((meeting) => !countsTowardNeeds(meeting))) {
     return false;
   }
 
