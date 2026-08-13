@@ -47,7 +47,8 @@ Roster format — one meeting each, and the exact solver applies:
     "days": ["mon", "tue"],          // with slotsPerDay, builds the grid
     "slotsPerDay": 3,
     "people": [
-      { "id": "ana", "availableSlotIds": ["mon#0", "mon#1"] }
+      { "id": "ana", "availableSlotIds": ["mon#0", "mon#1"] },
+      { "id": "bo" }                   // no list: free until a rule says otherwise
     ],
     "preferences": { "compactDaysWeight": 1, "earlinessWeight": 0 }
   }
@@ -67,6 +68,20 @@ Plan format — attendee sets, several meetings per person, and rules:
       { "kind": "avoid", "meeting": "joint", "weight": 5 }
     ]
   }
+
+Availability — works with either format, so nobody writes out a complement:
+  "availability": [
+    { "kind": "busy", "person": "sally", "days": ["tue"] },
+    { "kind": "busy", "person": "floyd", "slotOfDay": [1] },
+    { "kind": "busy", "person": "paul", "days": ["wed"], "slotOfDay": [1] },
+    { "kind": "free", "person": "bo", "days": ["mon", "fri"] }
+  ]
+
+  "days" matches the day label exactly, with no date parsing; "slotOfDay" is the
+  position within its own day, so 1 is the second slot of every day. Selectors in
+  one rule are ANDed — the "paul" rule above is Wednesday lunch only, not all of
+  Wednesday. "free" keeps only what it matches, "busy" removes it, and "busy"
+  wins on overlap, so order never matters. Use "slotIds" for anything else.
 
 A meeting with no "allowedSlotIds" may use any slot. Rules that relate two
 meetings leave the exact solver behind, so a failure then reports that no plan
