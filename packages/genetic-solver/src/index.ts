@@ -35,6 +35,7 @@ export type {
   AvailabilityRule,
   RequestResult,
   RunOptions,
+  SlotSelector,
 } from './scenarios/meeting-request.ts';
 
 export {

@@ -144,6 +144,115 @@ describe('parseSpec on the plan shape', () => {
   });
 });
 
+/**
+ * Availability is scoped to a person, so it cannot say "this meeting happens at
+ * lunch, whoever attends". Without meeting-scoped selectors that has to be an
+ * explicit slot list, written out again every time the grid changes.
+ */
+describe('meeting-scoped selectors compile into slot lists', () => {
+  const allowedFor = (meeting: Record<string, unknown>) =>
+    parseSpec({
+      days: ['mon', 'tue', 'wed'],
+      slotsPerDay: 3,
+      needs: { ana: 1 },
+      meetings: [{ id: 'm', attendees: ['ana'], ...meeting }],
+    }).meetings[0].allowedSlotIds;
+
+  test('a meeting with no selector may use any slot', () => {
+    assert.equal(allowedFor({}), undefined);
+  });
+
+  test('allowedDays keeps that day, and nothing else', () => {
+    assert.deepEqual(allowedFor({ allowedDays: ['tue'] }), [
+      'tue#0',
+      'tue#1',
+      'tue#2',
+    ]);
+  });
+
+  test('allowedSlotOfDay keeps that position on every day', () => {
+    assert.deepEqual(allowedFor({ allowedSlotOfDay: [1] }), [
+      'mon#1',
+      'tue#1',
+      'wed#1',
+    ]);
+  });
+
+  test('selectors on one meeting are ANDed, so this is Wednesday lunch', () => {
+    assert.deepEqual(
+      allowedFor({ allowedDays: ['wed'], allowedSlotOfDay: [1] }),
+      ['wed#1'],
+    );
+  });
+
+  test('an explicit slot list is narrowed rather than replaced', () => {
+    assert.deepEqual(
+      allowedFor({
+        allowedSlotIds: ['mon#0', 'tue#1', 'wed#2'],
+        allowedSlotOfDay: [1],
+      }),
+      ['tue#1'],
+    );
+  });
+
+  test('rejects a day the grid does not define', () => {
+    assert.throws(() => allowedFor({ allowedDays: ['sat'] }), InputError);
+  });
+
+  test('rejects a slotOfDay past the longest day', () => {
+    assert.throws(() => allowedFor({ allowedSlotOfDay: [3] }), InputError);
+  });
+
+  test('rejects malformed selectors', () => {
+    assert.throws(() => allowedFor({ allowedDays: 'mon' }), InputError);
+    assert.throws(() => allowedFor({ allowedSlotOfDay: [-1] }), InputError);
+  });
+
+  test('rejects selectors with nothing in common', () => {
+    assert.throws(
+      () => allowedFor({ allowedDays: ['mon'], allowedSlotIds: ['tue#0'] }),
+      InputError,
+    );
+  });
+
+  test('availability narrows a meeting-scoped limit further', () => {
+    const spec = parseSpec({
+      days: ['mon', 'tue', 'wed'],
+      slotsPerDay: 3,
+      needs: { ana: 1 },
+      meetings: [{ id: 'm', attendees: ['ana'], allowedDays: ['mon', 'tue'] }],
+      availability: [{ kind: 'busy', person: 'ana', days: ['tue'] }],
+    });
+
+    assert.deepEqual(spec.meetings[0].allowedSlotIds, [
+      'mon#0',
+      'mon#1',
+      'mon#2',
+    ]);
+  });
+
+  test('a meeting limited to lunch keeps its proof', () => {
+    const result = run(
+      parseSpec({
+        days: ['mon', 'tue'],
+        slotsPerDay: 3,
+        needs: { ana: 1, bo: 1 },
+        meetings: [
+          { id: 'a', attendees: ['ana'], allowedSlotOfDay: [1] },
+          { id: 'b', attendees: ['bo'], allowedSlotOfDay: [1] },
+        ],
+      }),
+    );
+
+    assert.equal(result.outcome.method, 'exact');
+    assert.equal(result.outcome.certainty, 'proof');
+    assert.deepEqual(
+      (result.plan?.scheduled ?? []).map((entry) => entry.slot.id).sort(),
+      ['mon#1', 'tue#1'],
+    );
+  });
+});
+
 describe('availability rules compile into slot lists', () => {
   const week = {
     days: ['mon', 'tue', 'wed'],
