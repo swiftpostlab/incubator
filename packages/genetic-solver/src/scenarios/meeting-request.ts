@@ -17,6 +17,12 @@
  * deliberate: one solver path means the two shapes cannot drift apart, and a
  * roster still routes to the exact solver because it satisfies every condition
  * in `planIsExactlySolvable`.
+ *
+ * Both shapes may also carry `availability` rules, which compile down to the
+ * per-meeting slot lists the plan already understands. That compiler is the
+ * reason this module exists in its current size: without it, "busy every
+ * Tuesday" has to be written as the complement of itself, one slot id at a
+ * time, and silently means something else as soon as the grid changes.
  */
 
 import { createDailySlots } from './meeting-scheduling.ts';
@@ -31,11 +37,48 @@ import type {
 } from './meeting-plan.ts';
 import type { Person, Slot } from './meeting-scheduling.ts';
 
+/**
+ * When one person can or cannot meet, said as a rule instead of a slot list.
+ *
+ * The three selectors are ANDed within a rule and ORed within themselves, so
+ * `{ days: ['wed'], slotOfDay: [1] }` is "Wednesday lunch" while two separate
+ * rules would be "all of Wednesday, and every lunch". At least one selector is
+ * required — a rule selecting everything is far more likely to be a mistake
+ * than an intent.
+ *
+ * `slotOfDay` counts position *within its day*, not `Slot.index`, which is a
+ * whole-grid ordinal. On a grid of three slots a day, `slotOfDay: [1]` is the
+ * middle slot of every day; `Slot.index === 1` would be one slot on day one.
+ */
+export interface AvailabilityRule {
+  /** `busy` removes the matched slots; `free` keeps only them. */
+  readonly kind: 'busy' | 'free';
+  readonly person: string;
+  /** Matched against `Slot.day` exactly. No date parsing is attempted. */
+  readonly days?: readonly string[];
+  /** Zero-based position within the day, ordered by `Slot.index`. */
+  readonly slotOfDay?: readonly number[];
+  /** The escape hatch, for availability no selector describes. */
+  readonly slotIds?: readonly string[];
+}
+
+/**
+ * A roster entry before availability is resolved.
+ *
+ * `availableSlotIds` is optional here but required on `Person`, because a
+ * roster may now state availability as rules instead — and a person with
+ * neither is simply free all week.
+ */
+type RawPerson = Omit<Person, 'availableSlotIds'> & {
+  readonly availableSlotIds?: readonly string[];
+};
+
 interface RawSpec {
   readonly slots?: readonly Slot[];
   readonly days?: readonly string[];
   readonly slotsPerDay?: number;
-  readonly people?: readonly Person[];
+  readonly availability?: readonly AvailabilityRule[];
+  readonly people?: readonly RawPerson[];
   readonly preferences?: {
     readonly compactDaysWeight?: number;
     readonly earlinessWeight?: number;
@@ -91,6 +134,219 @@ const parseSlots = (raw: RawSpec): readonly Slot[] => {
   return createDailySlots(raw.days, raw.slotsPerDay);
 };
 
+const parseAvailability = (raw: RawSpec): readonly AvailabilityRule[] => {
+  if (raw.availability === undefined) {
+    return [];
+  }
+
+  const given: readonly unknown[] = raw.availability;
+
+  if (!Array.isArray(given)) {
+    throw new InputError('"availability" must be an array when given');
+  }
+
+  given.forEach((rule, index) => {
+    const where = `availability[${String(index)}]`;
+
+    if (!isRecord(rule)) {
+      throw new InputError(`${where} must be an object`);
+    }
+
+    if (rule.kind !== 'busy' && rule.kind !== 'free') {
+      throw new InputError(`${where} needs "kind" to be "busy" or "free"`);
+    }
+
+    if (typeof rule.person !== 'string') {
+      throw new InputError(`${where} needs a string "person"`);
+    }
+
+    for (const field of ['days', 'slotIds'] as const) {
+      const value: unknown = rule[field];
+
+      if (
+        value !== undefined &&
+        (!Array.isArray(value) ||
+          value.some((entry) => typeof entry !== 'string'))
+      ) {
+        throw new InputError(`${where} "${field}" must be an array of strings`);
+      }
+    }
+
+    if (
+      rule.slotOfDay !== undefined &&
+      (!Array.isArray(rule.slotOfDay) ||
+        rule.slotOfDay.some(
+          (position) => !Number.isInteger(position) || Number(position) < 0,
+        ))
+    ) {
+      throw new InputError(
+        `${where} "slotOfDay" must be an array of integers >= 0`,
+      );
+    }
+
+    if (
+      rule.days === undefined &&
+      rule.slotOfDay === undefined &&
+      rule.slotIds === undefined
+    ) {
+      throw new InputError(
+        `${where} needs at least one of "days", "slotOfDay", or "slotIds"`,
+      );
+    }
+  });
+
+  return raw.availability;
+};
+
+/**
+ * Where each slot sits inside its own day, ordered by `Slot.index`.
+ *
+ * Derived rather than stored, so it stays correct on an irregular grid where
+ * one day offers more slots than another, and needs no change to `Slot`.
+ */
+const positionsWithinDay = (
+  slots: readonly Slot[],
+): ReadonlyMap<string, number> => {
+  const byDay = new Map<string, Slot[]>();
+
+  for (const slot of slots) {
+    const existing = byDay.get(slot.day);
+
+    if (existing) {
+      existing.push(slot);
+    } else {
+      byDay.set(slot.day, [slot]);
+    }
+  }
+
+  const positions = new Map<string, number>();
+
+  for (const daySlots of byDay.values()) {
+    [...daySlots]
+      .sort((left, right) => left.index - right.index)
+      .forEach((slot, position) => positions.set(slot.id, position));
+  }
+
+  return positions;
+};
+
+/**
+ * Compile availability rules into the per-meeting slot lists the plan uses.
+ *
+ * Pure, and deliberately separate from the solver: this is where a "busy every
+ * Tuesday" turns into slot ids, and getting it wrong produces a plan that looks
+ * valid and quietly ignores the rule. Everything a rule can name is checked
+ * against the grid first, so a typo or a stale day label fails loudly rather
+ * than matching nothing.
+ *
+ * A person's own `free` rules union together — two of them mean "either of
+ * these" — and `busy` is subtracted afterwards, so the outcome does not depend
+ * on the order rules were written in.
+ */
+export const applyAvailability = (
+  spec: MeetingPlanSpec,
+  rules: readonly AvailabilityRule[],
+): MeetingPlanSpec => {
+  if (rules.length === 0) {
+    return spec;
+  }
+
+  const slotIds = spec.slots.map((slot) => slot.id);
+  const knownSlotIds = new Set(slotIds);
+  const knownDays = new Set(spec.slots.map((slot) => slot.day));
+  const positions = positionsWithinDay(spec.slots);
+  const knownPositions = new Set(positions.values());
+
+  for (const rule of rules) {
+    if (!(rule.person in spec.needs)) {
+      throw new InputError(
+        `An availability rule names '${rule.person}', who is not in this spec`,
+      );
+    }
+
+    for (const day of rule.days ?? []) {
+      if (!knownDays.has(day)) {
+        throw new InputError(
+          `An availability rule for '${rule.person}' names unknown day '${day}'`,
+        );
+      }
+    }
+
+    for (const slotId of rule.slotIds ?? []) {
+      if (!knownSlotIds.has(slotId)) {
+        throw new InputError(
+          `An availability rule for '${rule.person}' names unknown slot '${slotId}'`,
+        );
+      }
+    }
+
+    for (const position of rule.slotOfDay ?? []) {
+      if (!knownPositions.has(position)) {
+        throw new InputError(
+          `An availability rule for '${rule.person}' names slot ${String(position)} of the day, but no day has that many slots`,
+        );
+      }
+    }
+  }
+
+  const matches = (rule: AvailabilityRule, slot: Slot): boolean =>
+    (rule.days?.includes(slot.day) ?? true) &&
+    (rule.slotIds?.includes(slot.id) ?? true) &&
+    (rule.slotOfDay?.includes(positions.get(slot.id) ?? -1) ?? true);
+
+  const people = new Set(rules.map((rule) => rule.person));
+  const allowedByPerson = new Map<string, ReadonlySet<string>>();
+
+  for (const person of people) {
+    const own = rules.filter((rule) => rule.person === person);
+    const free = own.filter((rule) => rule.kind === 'free');
+    const busy = own.filter((rule) => rule.kind === 'busy');
+
+    const allowed = spec.slots
+      .filter(
+        (slot) =>
+          (free.length === 0 || free.some((rule) => matches(rule, slot))) &&
+          !busy.some((rule) => matches(rule, slot)),
+      )
+      .map((slot) => slot.id);
+
+    if (allowed.length === 0) {
+      throw new InputError(
+        `Availability rules leave '${person}' with no slot at all`,
+      );
+    }
+
+    allowedByPerson.set(person, new Set(allowed));
+  }
+
+  return {
+    ...spec,
+    meetings: spec.meetings.map((meeting) => {
+      const limits = meeting.attendees.flatMap((attendee) => {
+        const allowed = allowedByPerson.get(attendee);
+
+        return allowed ? [allowed] : [];
+      });
+
+      if (limits.length === 0) {
+        return meeting;
+      }
+
+      const allowedSlotIds = (meeting.allowedSlotIds ?? slotIds).filter(
+        (slotId) => limits.every((allowed) => allowed.has(slotId)),
+      );
+
+      if (allowedSlotIds.length === 0) {
+        throw new InputError(
+          `Availability rules leave meeting '${meeting.id}' (${meeting.attendees.join(', ')}) with no slot it can use`,
+        );
+      }
+
+      return { ...meeting, allowedSlotIds };
+    }),
+  };
+};
+
 const parseRoster = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
   const people = raw.people ?? [];
 
@@ -100,11 +356,12 @@ const parseRoster = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
     }
 
     if (
-      !Array.isArray(person.availableSlotIds) ||
-      person.availableSlotIds.some((slotId) => typeof slotId !== 'string')
+      person.availableSlotIds !== undefined &&
+      (!Array.isArray(person.availableSlotIds) ||
+        person.availableSlotIds.some((slotId) => typeof slotId !== 'string'))
     ) {
       throw new InputError(
-        `people[${String(index)}] needs "availableSlotIds" as an array of strings`,
+        `people[${String(index)}] "availableSlotIds" must be an array of strings`,
       );
     }
   });
@@ -200,13 +457,14 @@ export const parseSpec = (input: unknown): MeetingPlanSpec => {
 
   const raw = input as RawSpec;
   const slots = parseSlots(raw);
+  const availability = parseAvailability(raw);
 
   if (raw.meetings !== undefined) {
     if (!Array.isArray(raw.meetings)) {
       throw new InputError('"meetings" must be an array when given');
     }
 
-    return parsePlan(raw, slots);
+    return applyAvailability(parsePlan(raw, slots), availability);
   }
 
   if (!Array.isArray(raw.people)) {
@@ -215,7 +473,7 @@ export const parseSpec = (input: unknown): MeetingPlanSpec => {
     );
   }
 
-  return parseRoster(raw, slots);
+  return applyAvailability(parseRoster(raw, slots), availability);
 };
 
 export type RunOptions = PlanOptions;

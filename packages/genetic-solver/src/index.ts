@@ -25,12 +25,17 @@ export {
 
 export {
   InputError,
+  applyAvailability,
   defaultRunOptions,
   parseSpec,
   run,
   solveRequest,
 } from './scenarios/meeting-request.ts';
-export type { RequestResult, RunOptions } from './scenarios/meeting-request.ts';
+export type {
+  AvailabilityRule,
+  RequestResult,
+  RunOptions,
+} from './scenarios/meeting-request.ts';
 
 export {
   createPlanProblem,

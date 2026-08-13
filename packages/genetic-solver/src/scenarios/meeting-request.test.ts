@@ -144,6 +144,288 @@ describe('parseSpec on the plan shape', () => {
   });
 });
 
+describe('availability rules compile into slot lists', () => {
+  const week = {
+    days: ['mon', 'tue', 'wed'],
+    slotsPerDay: 3,
+    people: [{ id: 'sally' }],
+  };
+
+  const allowedFor = (spec: ReturnType<typeof parseSpec>, meetingId: string) =>
+    spec.meetings.find((meeting) => meeting.id === meetingId)?.allowedSlotIds;
+
+  test('a person with no rules and no slot list is free all week', () => {
+    const spec = parseSpec(week);
+
+    assert.equal(allowedFor(spec, 'sally'), undefined);
+  });
+
+  test('busy by day removes that whole day, and nothing else', () => {
+    const spec = parseSpec({
+      ...week,
+      availability: [{ kind: 'busy', person: 'sally', days: ['tue'] }],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), [
+      'mon#0',
+      'mon#1',
+      'mon#2',
+      'wed#0',
+      'wed#1',
+      'wed#2',
+    ]);
+  });
+
+  test('busy by slotOfDay removes that position on every day', () => {
+    const spec = parseSpec({
+      ...week,
+      availability: [{ kind: 'busy', person: 'sally', slotOfDay: [1] }],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), [
+      'mon#0',
+      'mon#2',
+      'tue#0',
+      'tue#2',
+      'wed#0',
+      'wed#2',
+    ]);
+  });
+
+  test('slotOfDay counts within the day, not by the whole-grid index', () => {
+    // Slot.index is a grid-wide ordinal, so position 1 of each day is index 1,
+    // 4, and 7 here. A rule reading Slot.index directly would remove one slot.
+    const spec = parseSpec({
+      ...week,
+      availability: [{ kind: 'busy', person: 'sally', slotOfDay: [1] }],
+    });
+
+    assert.equal(allowedFor(spec, 'sally')?.length, 6);
+  });
+
+  test('slotOfDay orders by index, not by the order slots were listed', () => {
+    const spec = parseSpec({
+      slots: [
+        { id: 'late', day: 'mon', index: 2 },
+        { id: 'early', day: 'mon', index: 0 },
+        { id: 'middle', day: 'mon', index: 1 },
+      ],
+      people: [{ id: 'sally' }],
+      availability: [{ kind: 'busy', person: 'sally', slotOfDay: [0] }],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), ['late', 'middle']);
+  });
+
+  test('selectors within one rule are ANDed, so this is Wednesday lunch', () => {
+    const spec = parseSpec({
+      ...week,
+      availability: [
+        { kind: 'busy', person: 'sally', days: ['wed'], slotOfDay: [1] },
+      ],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), [
+      'mon#0',
+      'mon#1',
+      'mon#2',
+      'tue#0',
+      'tue#1',
+      'tue#2',
+      'wed#0',
+      'wed#2',
+    ]);
+  });
+
+  test('free keeps only the matched slots', () => {
+    const spec = parseSpec({
+      ...week,
+      availability: [{ kind: 'free', person: 'sally', days: ['wed'] }],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), ['wed#0', 'wed#1', 'wed#2']);
+  });
+
+  test("a person's free rules union rather than intersect", () => {
+    const spec = parseSpec({
+      ...week,
+      availability: [
+        { kind: 'free', person: 'sally', days: ['mon'] },
+        { kind: 'free', person: 'sally', days: ['wed'] },
+      ],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), [
+      'mon#0',
+      'mon#1',
+      'mon#2',
+      'wed#0',
+      'wed#1',
+      'wed#2',
+    ]);
+  });
+
+  test('busy wins over free, whichever order they are written in', () => {
+    const rules = [
+      { kind: 'free', person: 'sally', days: ['wed'] },
+      { kind: 'busy', person: 'sally', slotOfDay: [1] },
+    ];
+
+    const forward = parseSpec({ ...week, availability: rules });
+    const reversed = parseSpec({ ...week, availability: [...rules].reverse() });
+
+    assert.deepEqual(allowedFor(forward, 'sally'), ['wed#0', 'wed#2']);
+    assert.deepEqual(allowedFor(reversed, 'sally'), ['wed#0', 'wed#2']);
+  });
+
+  test('rules narrow an explicit slot list rather than replacing it', () => {
+    const spec = parseSpec({
+      ...week,
+      people: [{ id: 'sally', availableSlotIds: ['mon#0', 'tue#0', 'wed#0'] }],
+      availability: [{ kind: 'busy', person: 'sally', days: ['tue'] }],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'sally'), ['mon#0', 'wed#0']);
+  });
+
+  test('a joint meeting is limited by every attendee', () => {
+    const spec = parseSpec({
+      ...week,
+      people: undefined,
+      needs: { sally: 1, paul: 1 },
+      meetings: [{ id: 'joint', attendees: ['sally', 'paul'] }],
+      availability: [
+        { kind: 'free', person: 'sally', days: ['mon', 'tue'] },
+        { kind: 'free', person: 'paul', days: ['tue', 'wed'] },
+      ],
+    });
+
+    assert.deepEqual(allowedFor(spec, 'joint'), ['tue#0', 'tue#1', 'tue#2']);
+  });
+
+  test('a meeting nobody in it is constrained by is left untouched', () => {
+    const spec = parseSpec({
+      ...week,
+      people: undefined,
+      needs: { sally: 1, paul: 1 },
+      meetings: [
+        { id: 'sally-solo', attendees: ['sally'] },
+        { id: 'paul-solo', attendees: ['paul'] },
+      ],
+      availability: [{ kind: 'busy', person: 'sally', days: ['tue'] }],
+    });
+
+    assert.equal(allowedFor(spec, 'paul-solo'), undefined);
+    assert.equal(allowedFor(spec, 'sally-solo')?.length, 6);
+  });
+});
+
+describe('availability rules fail loudly rather than matching nothing', () => {
+  const week = {
+    days: ['mon', 'tue'],
+    slotsPerDay: 2,
+    people: [{ id: 'sally' }],
+  };
+
+  const rejects = (availability: unknown) => {
+    assert.throws(() => parseSpec({ ...week, availability }), InputError);
+  };
+
+  test('rejects a non-array availability', () => {
+    rejects('busy on tuesday');
+  });
+
+  test('rejects a rule that is not an object, or has a bad kind', () => {
+    rejects([null]);
+    rejects([{ kind: 'maybe', person: 'sally', days: ['mon'] }]);
+    rejects([{ kind: 'busy', days: ['mon'] }]);
+  });
+
+  test('rejects a rule that selects nothing at all', () => {
+    rejects([{ kind: 'busy', person: 'sally' }]);
+  });
+
+  test('rejects malformed selectors', () => {
+    rejects([{ kind: 'busy', person: 'sally', days: [7] }]);
+    rejects([{ kind: 'busy', person: 'sally', slotIds: [7] }]);
+    rejects([{ kind: 'busy', person: 'sally', slotOfDay: [-1] }]);
+    rejects([{ kind: 'busy', person: 'sally', slotOfDay: [1.5] }]);
+  });
+
+  test('rejects an unknown person, so a typo cannot be ignored', () => {
+    rejects([{ kind: 'busy', person: 'sallie', days: ['mon'] }]);
+  });
+
+  test('rejects a day the grid does not define', () => {
+    rejects([{ kind: 'busy', person: 'sally', days: ['thu'] }]);
+  });
+
+  test('rejects a slot id the grid does not define', () => {
+    rejects([{ kind: 'busy', person: 'sally', slotIds: ['mon#9'] }]);
+  });
+
+  test('rejects a slotOfDay past the longest day', () => {
+    rejects([{ kind: 'busy', person: 'sally', slotOfDay: [2] }]);
+  });
+
+  test('rejects rules that leave a person with nothing', () => {
+    rejects([
+      { kind: 'free', person: 'sally', days: ['mon'] },
+      { kind: 'busy', person: 'sally', days: ['mon'] },
+    ]);
+  });
+
+  test('names the meeting when two attendees have no slot in common', () => {
+    assert.throws(
+      () =>
+        parseSpec({
+          days: ['mon', 'tue'],
+          slotsPerDay: 2,
+          needs: { sally: 1, paul: 1 },
+          meetings: [{ id: 'joint', attendees: ['sally', 'paul'] }],
+          availability: [
+            { kind: 'free', person: 'sally', days: ['mon'] },
+            { kind: 'free', person: 'paul', days: ['tue'] },
+          ],
+        }),
+      /joint/,
+    );
+  });
+});
+
+describe('availability rules replace hand-written complements', () => {
+  test('the whole of the task note, said in three rules', () => {
+    const result = run(
+      parseSpec({
+        days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+        slotsPerDay: 3,
+        people: [{ id: 'sally' }, { id: 'bob' }, { id: 'floyd' }],
+        availability: [
+          { kind: 'busy', person: 'sally', days: ['tue'] },
+          { kind: 'busy', person: 'bob', days: ['wed'] },
+          { kind: 'busy', person: 'floyd', slotOfDay: [1] },
+        ],
+      }),
+    );
+
+    assert.equal(result.outcome.scheduled, true);
+
+    const placed = new Map(
+      (result.plan?.scheduled ?? []).map((entry) => [
+        entry.meeting.id,
+        entry.slot,
+      ]),
+    );
+
+    const floyd = placed.get('floyd');
+
+    assert.equal(placed.size, 3);
+    assert.notEqual(placed.get('sally')?.day, 'tue');
+    assert.notEqual(placed.get('bob')?.day, 'wed');
+    assert.notEqual(floyd && floyd.index % 3, 1);
+  });
+});
+
 describe('run routing', () => {
   test('takes the exact route for a plain roster', () => {
     const result = run(parseSpec(rosterSpec));
