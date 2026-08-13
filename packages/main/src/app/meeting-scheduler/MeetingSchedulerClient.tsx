@@ -11,7 +11,7 @@ import { InputError, solveRequest } from '@swiftpost/genetic-solver';
 import type { RequestResult } from '@swiftpost/genetic-solver';
 
 /**
- * The examples are the documentation, which is why there are three.
+ * The examples are the documentation, which is why there are four.
  *
  * The roster is the short form and the one that keeps the proof. The plan shows
  * everything the roster cannot say — a two-person meeting, someone needing two
@@ -22,6 +22,11 @@ import type { RequestResult } from '@swiftpost/genetic-solver';
  * with either shape, and its whole point is what it replaces. Read against the
  * roster's hand-listed slot ids, the same request is four lines instead of one
  * per person per slot, and it survives the grid changing.
+ *
+ * The fourth is the one that cannot be said with availability at all: a wish
+ * rather than a constraint, and a meeting that exists only because another was
+ * chosen. It is the useful counterweight to the third — stating "weekends are
+ * better" as availability makes the plan fail where it should merely cost more.
  */
 const rosterExample = `{
   "days": ["mon", "tue"],
@@ -43,7 +48,7 @@ const planExample = `{
     { "id": "bo-solo", "attendees": ["bo"] },
     { "id": "zoe-solo", "attendees": ["zoe"] },
     { "id": "bo-zoe-lunch", "attendees": ["bo", "zoe"],
-      "allowedSlotIds": ["Mon#1", "Tue#1", "Wed#1", "Thu#1", "Fri#1"] },
+      "allowedSlotOfDay": [1] },
     { "id": "jerry-1", "attendees": ["jerry"] },
     { "id": "jerry-2", "attendees": ["jerry"] }
   ],
@@ -70,6 +75,27 @@ const availabilityExample = `{
     { "kind": "busy", "person": "paul", "days": ["wed"], "slotOfDay": [1] }
   ],
   "preferences": { "compactDaysWeight": 1 }
+}`;
+
+const preferenceExample = `{
+  "days": ["thu", "fri", "sat", "sun"],
+  "slotsPerDay": 3,
+  "needs": { "alex": 1, "kia": 1, "john": 1 },
+  "meetings": [
+    { "id": "alex", "attendees": ["alex"] },
+    { "id": "kia", "attendees": ["kia"] },
+    { "id": "john-dinner-out", "attendees": ["john"] },
+    { "id": "john-dinner-home", "attendees": ["john"] },
+    { "id": "john-prep", "attendees": ["john"], "countsTowardNeeds": false }
+  ],
+  "rules": [
+    { "kind": "prefer", "person": "alex", "days": ["thu", "fri"], "weight": 2 },
+    { "kind": "prefer", "person": "kia", "days": ["sat", "sun"], "weight": 2 },
+    { "kind": "prefer", "person": "john", "slotOfDay": [0], "weight": 1 },
+    { "kind": "avoid", "meeting": "john-dinner-out", "weight": 2 },
+    { "kind": "together", "meetings": ["john-prep", "john-dinner-home"] },
+    { "kind": "consecutive", "first": "john-prep", "second": "john-dinner-home" }
+  ]
 }`;
 
 /** "1 slot" rather than "1 slots" — the bottleneck line reads as a sentence. */
@@ -119,7 +145,9 @@ const MeetingSchedulerClient: React.FC = () => {
             A plan with joint meetings or rules relating people is searched
             instead, and then a failure only means none was found. Either shape
             can state when people are busy as rules — by day, by position in the
-            day, or both — rather than listing the slots that are left.
+            day, or both — rather than listing the slots that are left. What is
+            merely preferred is said the same way and priced instead of
+            enforced, so it bends the plan rather than breaking it.
           </Text>
         </Stack>
 
@@ -142,6 +170,9 @@ const MeetingSchedulerClient: React.FC = () => {
           <Button onClick={loadExample(planExample)}>Plan example</Button>
           <Button onClick={loadExample(availabilityExample)}>
             Availability example
+          </Button>
+          <Button onClick={loadExample(preferenceExample)}>
+            Preference example
           </Button>
         </Stack>
 
