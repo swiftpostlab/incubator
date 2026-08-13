@@ -398,6 +398,147 @@ describe('solvePlan routing and certainty', () => {
   });
 });
 
+/**
+ * Group meetings need no feature of their own — they fall out of attendee sets
+ * plus `avoid`. These pin that, because the next few rules are built on the
+ * assumption and would hide a regression in it.
+ */
+describe('meeting people as a group', () => {
+  const people = ['ana', 'bo', 'cy', 'dee', 'eli', 'fay', 'gus'];
+
+  const groupSpec = (
+    days: readonly string[],
+    slotsPerDay: number,
+  ): MeetingPlanSpec => ({
+    slots: createDailySlots(days, slotsPerDay),
+    needs: Object.fromEntries(people.map((person) => [person, 1])),
+    meetings: [
+      // ana/bo/cy are meetable as one entity, or individually.
+      { id: 'group-abc', attendees: ['ana', 'bo', 'cy'] },
+      { id: 'ana', attendees: ['ana'] },
+      { id: 'bo', attendees: ['bo'] },
+      { id: 'cy', attendees: ['cy'] },
+      // dee/eli can be met jointly, but it is worth less than meeting each.
+      { id: 'group-de', attendees: ['dee', 'eli'] },
+      { id: 'dee', attendees: ['dee'] },
+      { id: 'eli', attendees: ['eli'] },
+      // fay/gus cannot be met together, so no joint meeting is declared.
+      { id: 'fay', attendees: ['fay'] },
+      { id: 'gus', attendees: ['gus'] },
+    ],
+    rules: [{ kind: 'avoid', meeting: 'group-de', weight: 3 }],
+  });
+
+  const outcomeOf = (spec: MeetingPlanSpec) => {
+    const outcome = solvePlanRouted(spec, { seed: 3, maxGenerations: 800 });
+
+    assert.equal(outcome.scheduled, true);
+
+    return {
+      outcome,
+      ids: new Set(
+        describePlan(spec, outcome.candidate ?? []).scheduled.map(
+          (entry) => entry.meeting.id,
+        ),
+      ),
+    };
+  };
+
+  test('a joint meeting settles every attendee at once', () => {
+    // Six slots cannot hold seven individual meetings, so the group has to be
+    // used — and using it must satisfy ana, bo, and cy together.
+    const { ids, outcome } = outcomeOf(groupSpec(['mon', 'tue'], 3));
+
+    assert.equal(ids.has('group-abc'), true);
+    assert.equal(ids.has('ana'), false);
+    assert.equal(ids.has('bo'), false);
+    assert.equal(ids.has('cy'), false);
+    assert.equal(outcome.softViolation, 0);
+  });
+
+  test('an undiscounted group is still left alone when there is room', () => {
+    const { ids, outcome } = outcomeOf(groupSpec(['mon', 'tue', 'wed'], 3));
+
+    assert.equal(ids.has('group-abc'), false);
+    assert.equal(ids.has('group-de'), false);
+    assert.equal(ids.size, people.length);
+    assert.equal(outcome.softViolation, 0);
+  });
+
+  test('a discounted group is used only under pressure, and costs its weight', () => {
+    const { ids, outcome } = outcomeOf(groupSpec(['mon', 'tue'], 2));
+
+    assert.equal(ids.has('group-de'), true);
+    assert.equal(outcome.softViolation, 3);
+  });
+
+  test('people who cannot be met together never are', () => {
+    for (const grid of [
+      ['mon', 'tue', 'wed'],
+      ['mon', 'tue'],
+    ]) {
+      const spec = groupSpec(grid, grid.length === 3 ? 3 : 2);
+      const { outcome } = outcomeOf(spec);
+
+      for (const { meeting } of describePlan(spec, outcome.candidate ?? [])
+        .scheduled) {
+        assert.equal(
+          meeting.attendees.includes('fay') &&
+            meeting.attendees.includes('gus'),
+          false,
+        );
+      }
+    }
+  });
+});
+
+/**
+ * Until a soft per-person preference exists, "prefer these slots" is said with
+ * competing meetings and `avoid`. Pinned so the rule that replaces it has to
+ * reproduce the same behaviour rather than merely look similar.
+ */
+describe('a soft preference expressed as competing meetings', () => {
+  const preferred = ['Mon#0', 'Mon#1', 'Mon#2'];
+
+  const spec = (blocked: readonly string[]): MeetingPlanSpec => ({
+    slots,
+    needs: {
+      alex: 1,
+      ...Object.fromEntries(blocked.map((slotId) => [`hog-${slotId}`, 1])),
+    },
+    meetings: [
+      { id: 'alex-preferred', attendees: ['alex'], allowedSlotIds: preferred },
+      { id: 'alex-fallback', attendees: ['alex'] },
+      ...blocked.map((slotId) => ({
+        id: `hog-${slotId}`,
+        attendees: [`hog-${slotId}`],
+        allowedSlotIds: [slotId],
+      })),
+    ],
+    rules: [{ kind: 'avoid', meeting: 'alex-fallback', weight: 2 }],
+  });
+
+  test('takes the preferred slots when they are free, at no cost', () => {
+    const free = spec([]);
+    const outcome = solvePlanRouted(free, { seed: 3 });
+    const scheduled = describePlan(free, outcome.candidate ?? []).scheduled;
+
+    assert.equal(scheduled[0].meeting.id, 'alex-preferred');
+    assert.equal(outcome.softViolation, 0);
+  });
+
+  test('falls back when they are taken, paying exactly the weight', () => {
+    const squeezed = spec(preferred);
+    const outcome = solvePlanRouted(squeezed, { seed: 3 });
+    const ids = describePlan(squeezed, outcome.candidate ?? []).scheduled.map(
+      (entry) => entry.meeting.id,
+    );
+
+    assert.equal(ids.includes('alex-fallback'), true);
+    assert.equal(outcome.softViolation, 2);
+  });
+});
+
 describe('describePlan', () => {
   test('reports scheduled meetings in slot order and names the dropped ones', () => {
     const spec: MeetingPlanSpec = {
