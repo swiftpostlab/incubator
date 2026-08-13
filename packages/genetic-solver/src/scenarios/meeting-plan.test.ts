@@ -652,6 +652,160 @@ describe('a soft preference said once, as a prefer rule', () => {
   });
 });
 
+/**
+ * The dinner-at-home case: the meal takes the slot after the one spent cooking,
+ * and the cooking exists only because the meal does. Neither half is sayable
+ * with the rules that came before — `spacing` is a minimum in days with no
+ * ordering, and `needs` is exact equality, so it makes a meeting compulsory or
+ * impossible but never conditional.
+ */
+describe('coupling two meetings with together and consecutive', () => {
+  const twoDays = createDailySlots(['mon', 'tue'], 3);
+
+  const dinner = (
+    rules: MeetingPlanSpec['rules'],
+    needs = 2,
+  ): MeetingPlanSpec => ({
+    slots: twoDays,
+    needs: { john: needs },
+    meetings: [
+      { id: 'prep', attendees: ['john'] },
+      { id: 'dinner-home', attendees: ['john'] },
+    ],
+    rules,
+  });
+
+  const placed = (spec: MeetingPlanSpec) => {
+    const outcome = solvePlanRouted(spec, { seed: 5 });
+
+    assert.equal(outcome.scheduled, true);
+
+    const { scheduled } = describePlan(spec, outcome.candidate ?? []);
+
+    return new Map(
+      scheduled.map((entry) => [entry.meeting.id, entry.slot] as const),
+    );
+  };
+
+  test('places the first meeting in the slot right before the second', () => {
+    const slotsUsed = placed(
+      dinner([{ kind: 'consecutive', first: 'prep', second: 'dinner-home' }]),
+    );
+
+    const prep = slotsUsed.get('prep');
+    const meal = slotsUsed.get('dinner-home');
+
+    assert.ok(prep && meal);
+    assert.equal(meal.index - prep.index, 1);
+    assert.equal(prep.day, meal.day);
+  });
+
+  test('honours a wider gap', () => {
+    const slotsUsed = placed(
+      dinner([
+        { kind: 'consecutive', first: 'prep', second: 'dinner-home', gap: 2 },
+      ]),
+    );
+
+    const prep = slotsUsed.get('prep');
+    const meal = slotsUsed.get('dinner-home');
+
+    assert.ok(prep && meal);
+    assert.equal(meal.index - prep.index, 2);
+    assert.equal(prep.day, meal.day);
+  });
+
+  test('will not straddle a day boundary, adjacent indices or not', () => {
+    // mon#2 and tue#0 are one index apart and still not consecutive: cooking on
+    // Monday night for Tuesday's dinner is not what was asked for.
+    const acrossMidnight: MeetingPlanSpec = {
+      ...dinner([
+        { kind: 'consecutive', first: 'prep', second: 'dinner-home' },
+      ]),
+      meetings: [
+        { id: 'prep', attendees: ['john'], allowedSlotIds: ['mon#2'] },
+        { id: 'dinner-home', attendees: ['john'], allowedSlotIds: ['tue#0'] },
+      ],
+    };
+
+    const outcome = solvePlanRouted(acrossMidnight, {
+      seed: 5,
+      populationSize: 40,
+      maxGenerations: 40,
+    });
+
+    assert.equal(outcome.scheduled, false);
+    assert.equal(outcome.certainty, 'not-found');
+  });
+
+  test('says nothing about whether either meeting happens', () => {
+    // Only the ordering rule, and john needs one meeting rather than two. A
+    // lone meeting satisfies consecutive, which is together's job to prevent.
+    const single = dinner(
+      [{ kind: 'consecutive', first: 'prep', second: 'dinner-home' }],
+      1,
+    );
+
+    assert.equal(placed(single).size, 1);
+  });
+
+  test('together makes the pair all-or-nothing', () => {
+    // john needs one meeting, so the pair cannot both happen — and together
+    // forbids either happening alone. The only way out is the third option.
+    const withAlternative: MeetingPlanSpec = {
+      slots: twoDays,
+      needs: { john: 1 },
+      meetings: [
+        { id: 'prep', attendees: ['john'] },
+        { id: 'dinner-home', attendees: ['john'] },
+        { id: 'dinner-out', attendees: ['john'] },
+      ],
+      rules: [
+        { kind: 'together', meetings: ['prep', 'dinner-home'] },
+        { kind: 'consecutive', first: 'prep', second: 'dinner-home' },
+      ],
+    };
+
+    assert.deepEqual([...placed(withAlternative).keys()], ['dinner-out']);
+  });
+
+  test('both rules are hard, so the plan gives up its proof', () => {
+    assert.equal(
+      planIsExactlySolvable(
+        dinner([{ kind: 'together', meetings: ['prep', 'dinner-home'] }]),
+      ),
+      false,
+    );
+    assert.equal(
+      planIsExactlySolvable(
+        dinner([{ kind: 'consecutive', first: 'prep', second: 'dinner-home' }]),
+      ),
+      false,
+    );
+  });
+
+  test('rejects a rule that names an unknown or impossible pairing', () => {
+    for (const rules of [
+      [{ kind: 'together' as const, meetings: ['prep'] }],
+      [{ kind: 'together' as const, meetings: ['prep', 'ghost'] }],
+      [{ kind: 'consecutive' as const, first: 'prep', second: 'ghost' }],
+      [{ kind: 'consecutive' as const, first: 'prep', second: 'prep' }],
+      [
+        {
+          kind: 'consecutive' as const,
+          first: 'prep',
+          second: 'dinner-home',
+          gap: 0,
+        },
+      ],
+    ]) {
+      assert.throws(() => {
+        validatePlanSpec(dinner(rules));
+      }, RangeError);
+    }
+  });
+});
+
 describe('describePlan', () => {
   test('reports scheduled meetings in slot order and names the dropped ones', () => {
     const spec: MeetingPlanSpec = {

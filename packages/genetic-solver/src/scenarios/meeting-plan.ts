@@ -51,6 +51,33 @@ export type MeetingRule =
     }
   /** Never put these two people on the same day. */
   | { readonly kind: 'not-same-day'; readonly people: readonly string[] }
+  /**
+   * These meetings all happen, or none of them does.
+   *
+   * The only way to say that one meeting exists *because* another was chosen.
+   * Without it, `needs` forces a meeting always or never: it is exact equality,
+   * so a preparation slot either becomes compulsory or gets dropped, and neither
+   * is what "only if we eat at home" means.
+   */
+  | { readonly kind: 'together'; readonly meetings: readonly string[] }
+  /**
+   * Put `second` exactly `gap` slots after `first`, on the same day.
+   *
+   * The only rule that relates two meetings' *slots*. `spacing` is a minimum in
+   * days with no maximum and no ordering, so it cannot say "the prep is the slot
+   * before dinner"; nothing else comes close.
+   *
+   * Says nothing about whether either meeting happens — when one is unscheduled
+   * this is satisfied, and `together` is what couples their existence. Each rule
+   * does one thing, and the pair composes into "both, adjacent, in this order".
+   */
+  | {
+      readonly kind: 'consecutive';
+      readonly first: string;
+      readonly second: string;
+      /** Slots between the two, counted by `Slot.index`. Integer >= 1. Default 1. */
+      readonly gap?: number;
+    }
   /** Schedule this meeting only if the alternatives do not work out. */
   | {
       readonly kind: 'avoid';
@@ -231,6 +258,44 @@ export const validatePlanSpec = (spec: MeetingPlanSpec): void => {
       );
     }
 
+    if (rule.kind === 'together') {
+      if (rule.meetings.length < 2) {
+        throw new RangeError('A together rule needs at least two meetings');
+      }
+
+      for (const meeting of rule.meetings) {
+        if (!meetingIds.has(meeting)) {
+          throw new RangeError(
+            `Together rule references unknown meeting '${meeting}'`,
+          );
+        }
+      }
+    }
+
+    if (rule.kind === 'consecutive') {
+      for (const meeting of [rule.first, rule.second]) {
+        if (!meetingIds.has(meeting)) {
+          throw new RangeError(
+            `Consecutive rule references unknown meeting '${meeting}'`,
+          );
+        }
+      }
+
+      if (rule.first === rule.second) {
+        throw new RangeError(
+          `Consecutive rule puts '${rule.first}' after itself`,
+        );
+      }
+
+      const { gap = 1 } = rule;
+
+      if (!Number.isInteger(gap) || gap < 1) {
+        throw new RangeError(
+          `Consecutive rule for '${rule.first}' needs an integer gap >= 1, received ${String(gap)}`,
+        );
+      }
+    }
+
     if (rule.kind === 'prefer') {
       if (!(rule.person in spec.needs)) {
         throw new RangeError(
@@ -368,6 +433,62 @@ const buildRuleConstraints = (
           }
 
           return violation;
+        },
+      );
+    }
+
+    if (rule.kind === 'together') {
+      const targets = rule.meetings.map((id) =>
+        spec.meetings.findIndex((meeting) => meeting.id === id),
+      );
+
+      return hardConstraint<Assignment>(
+        `together:${rule.meetings.join('+')}`,
+        (candidate) => {
+          const scheduled = targets.filter(
+            (target) => candidate[target] !== index.unscheduled,
+          ).length;
+
+          // Zero only at all or nothing, and it shrinks as the group agrees,
+          // so the search has a direction to move in rather than a cliff.
+          return Math.min(scheduled, targets.length - scheduled);
+        },
+      );
+    }
+
+    if (rule.kind === 'consecutive') {
+      const first = spec.meetings.findIndex(
+        (meeting) => meeting.id === rule.first,
+      );
+      const second = spec.meetings.findIndex(
+        (meeting) => meeting.id === rule.second,
+      );
+      const gap = rule.gap ?? 1;
+
+      return hardConstraint<Assignment>(
+        `consecutive:${rule.first}->${rule.second}`,
+        (candidate) => {
+          const firstSlot = candidate[first];
+          const secondSlot = candidate[second];
+
+          if (
+            firstSlot === index.unscheduled ||
+            secondSlot === index.unscheduled
+          ) {
+            return 0;
+          }
+
+          const distance =
+            spec.slots[secondSlot].index - spec.slots[firstSlot].index;
+
+          // The same-day term is not redundant: on an irregular grid the last
+          // slot of one day and the first of the next can be one index apart.
+          return (
+            Math.abs(distance - gap) +
+            (index.dayOrdinalOf[firstSlot] === index.dayOrdinalOf[secondSlot] ?
+              0
+            : 1)
+          );
         },
       );
     }
