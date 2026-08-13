@@ -393,6 +393,50 @@ describe('availability rules fail loudly rather than matching nothing', () => {
   });
 });
 
+describe('availability rules stay inside the exact solver', () => {
+  const week = {
+    days: ['mon', 'tue', 'wed'],
+    slotsPerDay: 3,
+    people: [{ id: 'sally' }, { id: 'bob' }, { id: 'floyd' }],
+  };
+
+  test('a roster keeps its proof once rules narrow it', () => {
+    // Rules compile to allowed-slot lists, which is exactly what matching
+    // already takes — so nothing about them should cost the exact route.
+    const result = run(
+      parseSpec({
+        ...week,
+        availability: [
+          { kind: 'busy', person: 'sally', days: ['tue'] },
+          { kind: 'busy', person: 'floyd', slotOfDay: [1] },
+        ],
+      }),
+    );
+
+    assert.equal(result.outcome.method, 'exact');
+    assert.equal(result.outcome.certainty, 'proof');
+  });
+
+  test('an impossible one is proven impossible, not merely unfound', () => {
+    const result = run(
+      parseSpec({
+        days: ['mon'],
+        slotsPerDay: 3,
+        people: [{ id: 'a' }, { id: 'b' }],
+        availability: [
+          { kind: 'free', person: 'a', slotOfDay: [0] },
+          { kind: 'free', person: 'b', slotOfDay: [0] },
+        ],
+      }),
+    );
+
+    assert.equal(result.outcome.scheduled, false);
+    assert.equal(result.outcome.certainty, 'proof');
+    assert.deepEqual(result.outcome.bottleneck?.meetings, ['a', 'b']);
+    assert.deepEqual(result.outcome.bottleneck?.slots, ['mon#0']);
+  });
+});
+
 describe('availability rules replace hand-written complements', () => {
   test('the whole of the task note, said in three rules', () => {
     const result = run(
