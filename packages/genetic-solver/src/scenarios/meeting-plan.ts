@@ -57,6 +57,21 @@ export type MeetingRule =
       readonly meeting: string;
       readonly weight?: number;
     }
+  /**
+   * Keep one person's meetings in these slots when the plan can afford it.
+   *
+   * The soft counterpart to availability. "Weekends are probably better" is not
+   * a fact about when someone can meet, and saying it with availability makes it
+   * one — the plan then fails rather than costing more. Each of that person's
+   * meetings placed outside the set costs `weight`, so the price of ignoring the
+   * preference is stated rather than implied.
+   */
+  | {
+      readonly kind: 'prefer';
+      readonly person: string;
+      readonly slotIds: readonly string[];
+      readonly weight?: number;
+    }
   /** Pull the plan onto as few distinct days as possible. */
   | { readonly kind: 'compact-days'; readonly weight?: number }
   /** Prefer earlier slots. */
@@ -72,6 +87,7 @@ export type SoftMeetingRule = Extract<MeetingRule, { weight?: number }>;
  */
 const isSoftRule = (rule: MeetingRule): rule is SoftMeetingRule =>
   rule.kind === 'avoid' ||
+  rule.kind === 'prefer' ||
   rule.kind === 'compact-days' ||
   rule.kind === 'earliness';
 
@@ -215,6 +231,28 @@ export const validatePlanSpec = (spec: MeetingPlanSpec): void => {
       );
     }
 
+    if (rule.kind === 'prefer') {
+      if (!(rule.person in spec.needs)) {
+        throw new RangeError(
+          `Prefer rule names '${rule.person}', who has no entry in "needs"`,
+        );
+      }
+
+      if (rule.slotIds.length === 0) {
+        throw new RangeError(
+          `Prefer rule for '${rule.person}' names no slot, so it prefers nothing`,
+        );
+      }
+
+      for (const slotId of rule.slotIds) {
+        if (!slotIds.has(slotId)) {
+          throw new RangeError(
+            `Prefer rule for '${rule.person}' references unknown slot '${slotId}'`,
+          );
+        }
+      }
+    }
+
     if (isSoftRule(rule)) {
       const { weight = defaultAvoidWeight } = rule;
 
@@ -331,6 +369,22 @@ const buildRuleConstraints = (
 
           return violation;
         },
+      );
+    }
+
+    if (rule.kind === 'prefer') {
+      const preferred = new Set(rule.slotIds);
+
+      return softConstraint<Assignment>(
+        `prefer:${rule.person}:${String(ruleIndex)}`,
+        (candidate) =>
+          placements(candidate, index).filter(
+            (placement) =>
+              spec.meetings[placement.meeting].attendees.includes(
+                rule.person,
+              ) && !preferred.has(spec.slots[placement.slot].id),
+          ).length,
+        rule.weight ?? defaultAvoidWeight,
       );
     }
 

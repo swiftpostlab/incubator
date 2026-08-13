@@ -97,6 +97,17 @@ type RawMeeting = PlannedMeeting & {
   readonly allowedSlotOfDay?: readonly number[];
 };
 
+/**
+ * A `prefer` rule before its selectors are resolved.
+ *
+ * Everything else in `MeetingRule` names meetings and people, which the plan
+ * checks itself. Only this one names slots, so only this one is compiled here.
+ */
+type RawPreferRule = Omit<Extract<MeetingRule, { kind: 'prefer' }>, 'slotIds'> &
+  SlotSelector;
+
+type RawRule = Exclude<MeetingRule, { kind: 'prefer' }> | RawPreferRule;
+
 interface RawSpec {
   readonly slots?: readonly Slot[];
   readonly days?: readonly string[];
@@ -109,7 +120,7 @@ interface RawSpec {
   };
   readonly meetings?: readonly RawMeeting[];
   readonly needs?: Readonly<Record<string, number>>;
-  readonly rules?: readonly MeetingRule[];
+  readonly rules?: readonly RawRule[];
   readonly slotCapacity?: number;
 }
 
@@ -470,6 +481,58 @@ const parseRoster = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
   };
 };
 
+/**
+ * Compile the rules that name slots, and pass the rest through untouched.
+ *
+ * A `prefer` rule is the soft twin of availability, so it accepts the same
+ * selectors — "weekends, and earlier in the day" should not have to be spelled
+ * out slot by slot just because it is a preference rather than a constraint.
+ */
+const isPreferRule = (rule: RawRule): rule is RawPreferRule =>
+  isRecord(rule) && (rule as { readonly kind?: unknown }).kind === 'prefer';
+
+const parseRules = (
+  rules: readonly RawRule[],
+  resolve: (selector: SlotSelector, where: string) => readonly string[],
+): readonly MeetingRule[] =>
+  rules.map((rule, index): MeetingRule => {
+    const where = `rules[${String(index)}]`;
+
+    if (!isPreferRule(rule)) {
+      return rule;
+    }
+
+    if (typeof rule.person !== 'string') {
+      throw new InputError(`${where} needs a string "person"`);
+    }
+
+    const { days, slotOfDay, ...plain } = rule;
+    const selector = parseSelector(
+      {
+        days: { name: 'days', value: days },
+        slotOfDay: { name: 'slotOfDay', value: slotOfDay },
+        slotIds: { name: 'slotIds', value: plain.slotIds },
+      },
+      where,
+    );
+
+    if (selectsNothing(selector)) {
+      throw new InputError(
+        `${where} needs at least one of "days", "slotOfDay", or "slotIds"`,
+      );
+    }
+
+    const slotIds = resolve(selector, where);
+
+    if (slotIds.length === 0) {
+      throw new InputError(
+        `${where} prefers no slot at all: its selectors have nothing in common`,
+      );
+    }
+
+    return { ...plain, slotIds };
+  });
+
 const parsePlan = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
   const resolve = createSlotResolver(slots);
 
@@ -536,7 +599,7 @@ const parsePlan = (raw: RawSpec, slots: readonly Slot[]): MeetingPlanSpec => {
     slots,
     meetings,
     needs: raw.needs,
-    rules: raw.rules,
+    rules: raw.rules && parseRules(raw.rules, resolve),
     slotCapacity: raw.slotCapacity,
   };
 };

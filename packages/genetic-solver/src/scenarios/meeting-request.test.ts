@@ -253,6 +253,106 @@ describe('meeting-scoped selectors compile into slot lists', () => {
   });
 });
 
+describe('prefer rules take the same selectors as availability', () => {
+  const week = (rule: Record<string, unknown>) =>
+    parseSpec({
+      days: ['mon', 'tue', 'wed'],
+      slotsPerDay: 3,
+      needs: { kia: 1 },
+      meetings: [{ id: 'kia', attendees: ['kia'] }],
+      rules: [{ kind: 'prefer', person: 'kia', ...rule }],
+    }).rules?.[0];
+
+  const preferRule = (rule: Record<string, unknown>) => {
+    const parsed = week(rule);
+
+    return parsed?.kind === 'prefer' ? parsed : undefined;
+  };
+
+  const preferredSlots = (rule: Record<string, unknown>) =>
+    preferRule(rule)?.slotIds;
+
+  test('compiles days into the slot list the plan understands', () => {
+    assert.deepEqual(preferredSlots({ days: ['tue'] }), [
+      'tue#0',
+      'tue#1',
+      'tue#2',
+    ]);
+  });
+
+  test('ANDs selectors, and keeps the weight as written', () => {
+    assert.deepEqual(
+      preferredSlots({ days: ['wed'], slotOfDay: [0], weight: 4 }),
+      ['wed#0'],
+    );
+    assert.equal(preferRule({ days: ['wed'], weight: 4 })?.weight, 4);
+  });
+
+  test('leaves an explicit slot list alone', () => {
+    assert.deepEqual(preferredSlots({ slotIds: ['mon#2'] }), ['mon#2']);
+  });
+
+  test('rejects a rule that selects nothing, or selects nonsense', () => {
+    assert.throws(() => week({}), InputError);
+    assert.throws(() => week({ days: ['sat'] }), InputError);
+    assert.throws(() => week({ days: 'mon' }), InputError);
+    assert.throws(
+      () => week({ days: ['mon'], slotIds: ['tue#0'] }),
+      InputError,
+    );
+  });
+
+  test('leaves other rules untouched', () => {
+    const spec = parseSpec({
+      days: ['mon', 'tue'],
+      slotsPerDay: 3,
+      needs: { ana: 1, bo: 1 },
+      meetings: [
+        { id: 'a', attendees: ['ana'] },
+        { id: 'b', attendees: ['bo'] },
+      ],
+      rules: [{ kind: 'not-same-day', people: ['ana', 'bo'] }],
+    });
+
+    assert.deepEqual(spec.rules, [
+      { kind: 'not-same-day', people: ['ana', 'bo'] },
+    ]);
+  });
+
+  test('weekends preferred: taken when free, paid for when not', () => {
+    const spec = (busy: readonly string[]) => ({
+      days: ['fri', 'sat'],
+      slotsPerDay: 2,
+      needs: {
+        kia: 1,
+        ...Object.fromEntries(busy.map((slotId) => [`hog-${slotId}`, 1])),
+      },
+      meetings: [
+        { id: 'kia', attendees: ['kia'] },
+        ...busy.map((slotId) => ({
+          id: `hog-${slotId}`,
+          attendees: [`hog-${slotId}`],
+          allowedSlotIds: [slotId],
+        })),
+      ],
+      rules: [{ kind: 'prefer', person: 'kia', days: ['sat'], weight: 3 }],
+    });
+
+    const free = run(parseSpec(spec([])), { seed: 3 });
+    const kiaSlot = (result: ReturnType<typeof run>) =>
+      (result.plan?.scheduled ?? []).find((entry) => entry.meeting.id === 'kia')
+        ?.slot.id;
+
+    assert.equal(kiaSlot(free)?.startsWith('sat'), true);
+    assert.equal(free.outcome.softViolation, 0);
+
+    const squeezed = run(parseSpec(spec(['sat#0', 'sat#1'])), { seed: 3 });
+
+    assert.equal(kiaSlot(squeezed)?.startsWith('fri'), true);
+    assert.equal(squeezed.outcome.softViolation, 3);
+  });
+});
+
 describe('availability rules compile into slot lists', () => {
   const week = {
     days: ['mon', 'tue', 'wed'],

@@ -539,6 +539,119 @@ describe('a soft preference expressed as competing meetings', () => {
   });
 });
 
+/**
+ * The same preference, said once as a rule. The behaviour has to match the
+ * workaround above — preferred slots when they are free, the stated weight when
+ * they are not — or the rule is not a replacement for it.
+ */
+describe('a soft preference said once, as a prefer rule', () => {
+  const preferred = ['Mon#0', 'Mon#1', 'Mon#2'];
+
+  const spec = (blocked: readonly string[]): MeetingPlanSpec => ({
+    slots,
+    needs: {
+      alex: 1,
+      kia: 1,
+      ...Object.fromEntries(blocked.map((slotId) => [`hog-${slotId}`, 1])),
+    },
+    meetings: [
+      { id: 'alex', attendees: ['alex'] },
+      { id: 'kia', attendees: ['kia'] },
+      ...blocked.map((slotId) => ({
+        id: `hog-${slotId}`,
+        attendees: [`hog-${slotId}`],
+        allowedSlotIds: [slotId],
+      })),
+    ],
+    rules: [{ kind: 'prefer', person: 'alex', slotIds: preferred, weight: 2 }],
+  });
+
+  const slotFor = (plan: MeetingPlanSpec, person: string) => {
+    const outcome = solvePlanRouted(plan, { seed: 3 });
+
+    assert.equal(outcome.scheduled, true);
+
+    return {
+      outcome,
+      slotId: describePlan(plan, outcome.candidate ?? []).scheduled.find(
+        (entry) => entry.meeting.id === person,
+      )?.slot.id,
+    };
+  };
+
+  test('is soft, so the plan keeps its exact route', () => {
+    const free = spec([]);
+
+    assert.equal(planIsExactlySolvable(free), true);
+    assert.equal(solvePlanRouted(free, { seed: 3 }).method, 'exact+genetic');
+  });
+
+  test('takes a preferred slot when one is free, at no cost', () => {
+    const free = spec([]);
+    const { outcome, slotId } = slotFor(free, 'alex');
+
+    assert.ok(slotId !== undefined && preferred.includes(slotId), slotId);
+    assert.equal(outcome.softViolation, 0);
+  });
+
+  test('gives way when the preferred slots are taken, paying the weight', () => {
+    const squeezed = spec(preferred);
+    const { outcome, slotId } = slotFor(squeezed, 'alex');
+
+    assert.ok(slotId !== undefined && !preferred.includes(slotId), slotId);
+    assert.equal(outcome.softViolation, 2);
+  });
+
+  test('binds one person, not the whole plan', () => {
+    // kia has no rule, so kia sitting outside Monday is free. Only alex's
+    // displacement is charged, and it is charged once.
+    const squeezed = spec(preferred);
+    const { outcome, slotId } = slotFor(squeezed, 'kia');
+
+    assert.ok(slotId !== undefined && !preferred.includes(slotId), slotId);
+    assert.equal(outcome.softViolation, 2);
+  });
+
+  test('charges the weight once per displaced meeting', () => {
+    const twice: MeetingPlanSpec = {
+      slots,
+      needs: { alex: 2 },
+      meetings: [
+        { id: 'a1', attendees: ['alex'], allowedSlotIds: ['Tue#0'] },
+        { id: 'a2', attendees: ['alex'], allowedSlotIds: ['Wed#0'] },
+      ],
+      rules: [
+        { kind: 'prefer', person: 'alex', slotIds: preferred, weight: 2 },
+      ],
+    };
+
+    assert.equal(solvePlanRouted(twice, { seed: 3 }).softViolation, 4);
+  });
+
+  test('rejects a rule naming an unknown person, slot, or nothing at all', () => {
+    const base = spec([]);
+
+    assert.throws(() => {
+      validatePlanSpec({
+        ...base,
+        rules: [{ kind: 'prefer', person: 'ghost', slotIds: preferred }],
+      });
+    }, RangeError);
+    assert.throws(() => {
+      validatePlanSpec({
+        ...base,
+        rules: [{ kind: 'prefer', person: 'alex', slotIds: ['zzz'] }],
+      });
+    }, RangeError);
+    assert.throws(() => {
+      validatePlanSpec({
+        ...base,
+        rules: [{ kind: 'prefer', person: 'alex', slotIds: [] }],
+      });
+    }, RangeError);
+  });
+});
+
 describe('describePlan', () => {
   test('reports scheduled meetings in slot order and names the dropped ones', () => {
     const spec: MeetingPlanSpec = {
