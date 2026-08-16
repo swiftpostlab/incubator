@@ -233,6 +233,55 @@ Note what this adds up to: with only the two hard constraints, the scenario redu
 matching, and `solveMeetingExactly` is strictly the better tool. `createMeetingProblem` earns its
 place once `preferences` are set.
 
+## Choose the encoding before the constraints
+
+A constraint can only fix what the encoding already expresses cheaply. The
+clearest measured case is **duration** — an activity occupying several
+consecutive slots.
+
+The obvious encoding gives each unit its own variable and ties them together: a
+300-minute meal on a 30-minute grid becomes ten declared items, one
+all-or-nothing rule and nine adjacency rules. It is correct, and it does not
+work. A fortnight of a real calendar, same scenario at four granularities:
+
+| Slot | Grid | Variables | Coupling rules | Result |
+|---|---|---|---|---|
+| 180 min | 56 | 52 | 10 | not found, 20s |
+| 120 min | 98 | 59 | 20 | not found, 39s |
+| 60 min | 196 | 95 | 81 | not found, 45s |
+| 30 min | 392 | 166 | 165 | not found, 104s |
+
+Every instance is comfortably feasible by hand, and raising the budget does not
+help — 3000 generations stall at the same point as 400. The reason is the one
+the local-search section already describes: no move can shift a chained block,
+because relocating one unit breaks two adjacency rules and scores strictly
+worse, so selection rejects it. Chain count, not grid size, is the wall — it
+solves at 9 coupling rules and dies at 19.
+
+The same fortnight re-encoded with **one variable per activity holding its start
+slot**, duration as data, occupancy spread over `[start, start + length)`:
+
+| Slot | Grid | Variables | Constraints | Result |
+|---|---|---|---|---|
+| 180 min | 56 | 48 | 3 | solved, 0.98s |
+| 120 min | 98 | 48 | 3 | solved, 0.55s |
+| 60 min | 196 | 48 | 3 | solved, 0.32s |
+| 30 min | 392 | 48 | 3 | solved, 0.42s |
+
+Nothing about the search changed. Relocating a block became a single move, and
+nine rules per activity dissolved into the representation.
+
+Two corollaries from the same exercise:
+
+- **Confine the domain rather than scoring it.** Restricting allowed *start*
+  values to those where a block fits inside its day, and inside the days it is
+  permitted, makes those rules unviolatable instead of penalised — the same
+  trick `meeting-scheduling.ts` uses for availability.
+- **"Must span a window" is a domain computation, not a constraint.** "This
+  visit includes dinner" is `start <= dinnerStart && start + length >= dinnerEnd`
+  evaluated over candidate starts. It prunes the domain and costs the search
+  nothing.
+
 ## Extending it
 
 Define your own problem by supplying an `Encoding` and constraints:
